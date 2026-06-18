@@ -246,6 +246,24 @@ export default function App() {
     saveProgressToStorage(updatedProgress);
   };
 
+  const getTodayString = () => {
+    const today = new Date();
+    if (today.getFullYear() < 2026) {
+      today.setFullYear(2026);
+      today.setMonth(5); // June
+      today.setDate(18);
+    }
+    const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    const dd = String(today.getDate()).padStart(2, '0');
+    const mmm = monthNames[today.getMonth()];
+    const yyyy = today.getFullYear();
+    const dayName = days[today.getDay()];
+    
+    return `${dd}-${mmm}-${yyyy} (${dayName})`;
+  };
+
   if (!isDataLoaded) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
@@ -267,47 +285,21 @@ export default function App() {
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px]"></div>
 
         <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-blue-600/90 rounded-2xl border border-blue-400/20 text-white shadow-lg flex items-center justify-center">
-              <Layers size={24} className="animate-pulse-gentle" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-bold bg-blue-500/30 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded uppercase tracking-wider">
-                  Industrial HR Monitor
-                </span>
-                <span className="text-[10px] font-bold bg-indigo-500/30 text-indigo-300 border border-indigo-550 border-indigo-500/20 px-2 py-0.5 rounded uppercase tracking-wider">
-                  Dữ liệu 100% Khớp Excel
-                </span>
-              </div>
-              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight mt-1 text-white">
-                BÁO CÁO BIẾN ĐỘNG & QUẢN LÝ NHÂN SỰ DCLR
-              </h1>
-              <p className="text-xs text-slate-350 text-slate-400 font-medium">
-                Cơ sở dữ liệu quản lý tiếp nhận (IN) và kết thúc thôi việc (OUT) của DCLR và DC RMA BG
-              </p>
-            </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+              QUẢN LÝ NHÂN SỰ DCLR
+            </h1>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-3 w-auto">
             {/* Clock Widget / simulated time indicator */}
-            <div className="bg-slate-800/80 backdrop-blur-xs border border-slate-700 rounded-xl px-4 py-2.5 flex items-center justify-between sm:justify-start gap-4">
+            <div className="bg-slate-800/80 backdrop-blur-xs border border-slate-700 rounded-xl px-4 py-2.5 flex items-center gap-4">
               <div className="text-right">
                 <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-widest">Thời gian Chuyền</span>
-                <span className="text-xs font-extrabold text-blue-400">15-Jun-2026 (Thứ Hai)</span>
+                <span className="text-xs font-extrabold text-blue-400">{getTodayString()}</span>
               </div>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
             </div>
-
-            {/* Quick reset backup */}
-            <button
-              onClick={handleResetData}
-              title="Xóa sạch toàn bộ danh sách"
-              className="px-3.5 py-2.5 bg-rose-900/40 hover:bg-rose-900/65 text-rose-300 hover:text-rose-100 border border-rose-700/50 hover:border-rose-600 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
-            >
-              <RefreshCw size={12} className="text-rose-400" />
-              <span className="sm:hidden lg:inline">Xóa sạch dữ liệu cũ</span>
-            </button>
           </div>
         </div>
       </header>

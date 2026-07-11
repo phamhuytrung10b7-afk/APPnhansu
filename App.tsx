@@ -3,511 +3,417 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
-import { Employee, DayProgress, AssemblyLine } from './types';
-import { INITIAL_EMPLOYEES, DRILL_DATES } from './mockData';
-import StatsSection from './StatsSection';
-import PlanProgressTable from './PlanProgressTable';
-import EmployeeTable from './EmployeeTable';
-import EmployeeModal from './EmployeeModal';
-import AnalyticsSection from './AnalyticsSection';
-import { ClipboardList, BarChart3, Users, Settings, Briefcase, Sparkles, RefreshCw, Layers, AlertTriangle } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { GlobalStats, Department, MonthlyStat, AgeGroup, Alert, Evaluation } from './types';
+import { KpiCards } from './KpiCards';
+import { GaugeChart } from './GaugeChart';
+import { DepartmentTable } from './DepartmentTable';
+import { PersonnelAlerts, GeneralEvaluation } from './SidePanels';
+import { PersonnelStructureChart, AgeStructureChart, TurnoverTrendChart } from './Charts';
+import { Users, Settings as SettingsIcon, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { DataEntry } from './DataEntry';
+import * as XLSX from 'xlsx';
+import * as htmlToImage from 'html-to-image';
+import { jsPDF } from 'jspdf';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
+
+const MOCK_STATS: GlobalStats = {
+  month: "Tháng 06 năm 2026",
+  updatedAt: "30/06/2026",
+  totalBudget: 165,
+  totalCurrent: 149,
+  totalHiring: 16,
+  totalNewHires: 21,
+  totalResignations: 8,
+  totalTurnover: 1.38
+};
+
+const MOCK_DEPARTMENTS: Department[] = [
+  { name: "GT Bình Dương", budget: 33, current: 30, hiring: 3, newHires: 3, resignations: 1, turnoverRate: 3.33, status: ' ổn định' },
+  { name: "Lắp ráp", budget: 82, current: 75, hiring: 7, newHires: 12, resignations: 4, turnoverRate: 5.33, status: 'theo dõi' },
+  { name: "Cơ khí", budget: 42, current: 38, hiring: 4, newHires: 5, resignations: 2, turnoverRate: 5.26, status: 'theo dõi' },
+  { name: "Tổng hợp", budget: 8, current: 6, hiring: 2, newHires: 1, resignations: 1, turnoverRate: 16.67, status: 'cảnh báo' },
+];
+
+const MOCK_MONTHLY: MonthlyStat[] = [
+  { month: "T01/2026", rate: 1.12 },
+  { month: "T02/2026", rate: 1.45 },
+  { month: "T03/2026", rate: 1.21 },
+  { month: "T04/2026", rate: 1.68 },
+  { month: "T05/2026", rate: 1.63 },
+  { month: "T06/2026", rate: 1.38 },
+];
+
+const MOCK_AGE: AgeGroup[] = [
+  { id: '1', label: '≤ 25 tuổi', value: 39, percentage: '26,2%' },
+  { id: '2', label: '26 - 35 tuổi', value: 59, percentage: '39,6%' },
+  { id: '3', label: '36 - 45 tuổi', value: 40, percentage: '26,8%' },
+  { id: '4', label: '> 45 tuổi', value: 11, percentage: '7,4%' },
+];
+
+const MOCK_ALERTS: Alert[] = [
+  { id: '1', department: 'Bộ phận TỔNG HỢP', message: 'Tỷ lệ nghỉ việc 16,67%, vượt ngưỡng cảnh báo (≥ 5%).', type: 'danger' },
+  { id: '2', department: 'Bộ phận LẮP RÁP', message: 'Còn thiếu 07 nhân sự so với định biên.', type: 'warning' },
+  { id: '3', department: 'Bộ phận GT BÌNH DƯƠNG', message: 'Nhân sự ổn định.', type: 'success' },
+];
+
+const MOCK_EVALS: Evaluation[] = [
+  { id: '1', text: "Nhân sự hiện hữu đạt 90,3% so với định biên." },
+  { id: '2', text: "Tuyển mới 21 nhân sự trong tháng 06." },
+  { id: '3', text: "Có 08 nhân sự nghỉ việc trong tháng 06." },
+  { id: '4', text: "Tỷ lệ nghỉ việc toàn công ty 1,38%, trong ngưỡng kiểm soát." },
+  { id: '5', text: "Cần ưu tiên tuyển bổ sung cho bộ phận LẮP RÁP." }
+];
 
 export default function App() {
-  // --- STATE PERSISTENCE CLIENT-SIDE ---
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [dayProgress, setDayProgress] = useState<DayProgress[]>([]);
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [view, setView] = useState<'dashboard' | 'admin'>('dashboard');
+  const [selectedMonth, setSelectedMonth] = useState<number>(6); // Default to month 6 based on previous data
+  
+  const [stats, setStats] = useState<GlobalStats>(MOCK_STATS);
+  const [departments, setDepartments] = useState<Department[]>(MOCK_DEPARTMENTS);
+  const [monthlyStats, setMonthlyStats] = useState<MonthlyStat[]>(MOCK_MONTHLY);
+  const [ageGroups, setAgeGroups] = useState<AgeGroup[]>(MOCK_AGE);
+  const [alerts, setAlerts] = useState<Alert[]>(MOCK_ALERTS);
+  const [evaluations, setEvaluations] = useState<Evaluation[]>(MOCK_EVALS);
+  const [loading, setLoading] = useState(true);
+  const dashboardRef = useRef<HTMLDivElement>(null);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
 
-  // Load from LocalStorage
-  useEffect(() => {
+  const fetchData = async (monthIndex: number) => {
+    setLoading(true);
     try {
-      const storedEmployees = localStorage.getItem('dclr_employees_v1');
-      const storedProgress = localStorage.getItem('dclr_progress_v1');
-
-      if (storedEmployees) {
-        let parsed = JSON.parse(storedEmployees) as Employee[];
-        // Purge any residual 6000200 test items we seeded in the last turn
-        const beforePurgeCount = parsed.length;
-        parsed = parsed.filter(e => !e.code.startsWith('6000200'));
-        if (parsed.length !== beforePurgeCount) {
-          localStorage.setItem('dclr_employees_v1', JSON.stringify(parsed));
+      const monthStr = String(monthIndex).padStart(2, '0');
+      const docId = `2026_${monthStr}`;
+      
+      const rawData = localStorage.getItem('hr_dashboard_data');
+      if (rawData) {
+        const parsedData = JSON.parse(rawData);
+        
+        // Since we previously used month-specific reports, we simulate it here
+        // However, standard local storage just keeps global state. 
+        // We'll map the current data.
+        
+        const reportData = parsedData.reports && parsedData.reports[docId] ? parsedData.reports[docId] : null;
+        
+        if (reportData) {
+          setStats(reportData.stats || parsedData.stats || MOCK_STATS);
+          setDepartments(reportData.departments || parsedData.departments || []);
+          setAgeGroups(reportData.ages || parsedData.ageGroups || []);
+        } else {
+          setStats({
+            ...(parsedData.stats || MOCK_STATS),
+            month: `Tháng ${monthStr} năm 2026`
+          });
+          setDepartments(parsedData.departments || []);
+          setAgeGroups(parsedData.ageGroups || []);
         }
-        setEmployees(parsed);
-      } else {
-        // Since we are changing to manual data entry, seed with INITIAL_EMPLOYEES so they have the baseline to start editing.
-        const cleanedInitial = INITIAL_EMPLOYEES.filter(e => !e.code.startsWith('6000200'));
-        setEmployees(cleanedInitial);
-        localStorage.setItem('dclr_employees_v1', JSON.stringify(cleanedInitial));
-      }
 
-      if (storedProgress) {
-        const parsed = JSON.parse(storedProgress) as DayProgress[];
-        const migrated = parsed.map(dp => {
-          const updatedTargets = { ...dp.targets };
-          for (const key of Object.keys(updatedTargets)) {
-            const lineKey = key as AssemblyLine;
-            if (updatedTargets[lineKey].demand === undefined) {
-              updatedTargets[lineKey].demand = updatedTargets[lineKey].in || 0;
-            }
-            if (updatedTargets[lineKey].reception === undefined) {
-              updatedTargets[lineKey].reception = updatedTargets[lineKey].in || 0;
-            }
-          }
-          return {
-            ...dp,
-            targets: updatedTargets
-          };
-        });
-        setDayProgress(migrated);
-      } else {
-        setDayProgress(DRILL_DATES);
-        localStorage.setItem('dclr_progress_v1', JSON.stringify(DRILL_DATES));
+        setMonthlyStats(parsedData.monthlyStats || MOCK_MONTHLY);
+        setAlerts(parsedData.alerts || MOCK_ALERTS);
+        setEvaluations(parsedData.evaluations || MOCK_EVALS);
       }
-    } catch (e) {
-      console.warn('LocalStorage load failed, starting with empty list:', e);
-      setEmployees([]);
-      setDayProgress(DRILL_DATES);
+    } catch (error) {
+      console.error("Error fetching data from local storage:", error);
     } finally {
-      setIsDataLoaded(true);
+      setLoading(false);
     }
-  }, []);
+  };
 
-  // Save changes helper
-  const saveEmployeesToStorage = (updatedEmployees: Employee[]) => {
-    setEmployees(updatedEmployees);
+  useEffect(() => {
+    fetchData(selectedMonth);
+  }, [selectedMonth]);
+
+  const handleExportExcel = async () => {
+    if (!dashboardRef.current) return;
+    setIsExportingPDF(true); // Using this to show a loading state for the buttons
+    
     try {
-      localStorage.setItem('dclr_employees_v1', JSON.stringify(updatedEmployees));
-    } catch (e) {
-      console.error('LocalStorage write failed:', e);
-    }
-  };
-
-  const saveProgressToStorage = (updatedProgress: DayProgress[]) => {
-    setDayProgress(updatedProgress);
-    try {
-      localStorage.setItem('dclr_progress_v1', JSON.stringify(updatedProgress));
-    } catch (e) {
-      console.error('LocalStorage write failed:', e);
-    }
-  };
-
-  // Reset to default data
-  const handleResetData = () => {
-    if (window.confirm('Bạn có chắc chắn muốn XÓA SẠCH toàn bộ danh sách nhân sự hiện tại để làm việc từ đầu không?')) {
-      saveEmployeesToStorage([]);
-      saveProgressToStorage(DRILL_DATES);
-    }
-  };
-
-  // --- FILTERS & INTERACTIVE STATE ---
-  const [selectedLine, setSelectedLine] = useState<AssemblyLine | 'ALL'>('ALL');
-  const [activeTab, setActiveTab] = useState<'monitors' | 'recruitments' | 'analytics'>('monitors');
-
-  // Modal controller
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<'ADD' | 'EDIT' | 'RESIGN'>('ADD');
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-
-  // Custom delete confirmation modal state
-  const [deleteConfirmationId, setDeleteConfirmationId] = useState<string | null>(null);
-
-  // --- EMPLOYEE OPERATION HANDLERS ---
-  const handleAddEmployeeClick = () => {
-    setSelectedEmployee(null);
-    setModalMode('ADD');
-    setIsModalOpen(true);
-  };
-
-  const handleEditEmployeeClick = (employee: Employee) => {
-    setSelectedEmployee(employee);
-    setModalMode('EDIT');
-    setIsModalOpen(true);
-  };
-
-  const handleResignEmployeeClick = (employee: Employee) => {
-    setSelectedEmployee(employee);
-    setModalMode('RESIGN');
-    setIsModalOpen(true);
-  };
-
-  const handleDeleteEmployee = (id: string) => {
-    setDeleteConfirmationId(id);
-  };
-
-  const handleConfirmDelete = () => {
-    if (!deleteConfirmationId) return;
-    const updated = employees.filter(e => e.id !== deleteConfirmationId);
-    saveEmployeesToStorage(updated);
-    setDeleteConfirmationId(null);
-  };
-
-  const handleSaveEmployee = (employeeData: Partial<Employee>) => {
-    let updated: Employee[] = [];
-
-    if (modalMode === 'ADD') {
-      // Add new employee
-      const newEmp: Employee = {
-        id: `emp-new-${Date.now()}`,
-        code: employeeData.code || `DCLR-${Math.floor(100 + Math.random() * 900)}`,
-        fullName: employeeData.fullName || 'Nhân sự mới',
-        gender: employeeData.gender || 'Nam',
-        phone: employeeData.phone || '',
-        line: employeeData.line || 'DCLR',
-        manager: employeeData.manager || 'KHIÊM',
-        joinDate: employeeData.joinDate || '2026-06-15',
-        status: employeeData.status || 'WORKING',
-        notes: employeeData.notes || '',
-        resignDate: employeeData.resignDate,
-        resignReason: employeeData.resignReason
-      };
-      updated = [...employees, newEmp];
-    } else {
-      // Edit or Resign employee
-      updated = employees.map(emp => {
-        if (emp.id === employeeData.id) {
-          return {
-            ...emp,
-            ...employeeData
-          } as Employee;
+      const workbook = new ExcelJS.Workbook();
+      
+      // 1. Dashboard Image Sheet
+      const imgData = await htmlToImage.toPng(dashboardRef.current, { 
+        backgroundColor: '#F0F4F8', 
+        pixelRatio: 2,
+        filter: (node) => {
+          if (node instanceof HTMLElement) {
+            return !node.hasAttribute('data-html2canvas-ignore');
+          }
+          return true;
         }
-        return emp;
       });
+      
+      const imageId = workbook.addImage({
+        base64: imgData,
+        extension: 'png',
+      });
+      
+      const wsDashboard = workbook.addWorksheet('Dashboard', { views: [{ showGridLines: false }] });
+      
+      // Calculate dimensions in Excel units (roughly).
+      // Excel row height ~15 points, column width ~8 characters.
+      // We will place the image covering A1:U50 depending on aspect ratio.
+      const width = dashboardRef.current.offsetWidth * 2;
+      const height = dashboardRef.current.offsetHeight * 2;
+      
+      wsDashboard.addImage(imageId, {
+        tl: { col: 0, row: 0 },
+        ext: { width: width / 2.5, height: height / 2.5 }
+      });
+
+      // Helper function to add data sheets
+      const addDataSheet = (name: string, data: any[][]) => {
+        const ws = workbook.addWorksheet(name);
+        ws.addRows(data);
+        // Style header row
+        ws.getRow(1).font = { bold: true };
+      };
+
+      // 2. Global Stats
+      const globalStatsData = [
+        ['Tháng', stats.month],
+        ['Ngày cập nhật', stats.updatedAt],
+        ['Tổng định biên', stats.totalBudget],
+        ['Tổng hiện hữu', stats.totalCurrent],
+        ['Tổng cần tuyển', stats.totalHiring],
+        ['Tổng tuyển mới', stats.totalNewHires],
+        ['Tổng nghỉ việc', stats.totalResignations],
+        ['Tỷ lệ nghỉ việc (%)', stats.totalTurnover],
+        ['Tỷ lệ nữ (%)', stats.femaleRate],
+        ['Độ tuổi trung bình', stats.avgAge],
+        ['TB thời gian gắn bó (năm)', stats.avgTenure]
+      ];
+      addDataSheet('Tổng quan', globalStatsData);
+
+      // 3. Departments
+      const deptData = [
+        ['Bộ phận', 'Định biên', 'Hiện hữu', 'Cần tuyển', 'Tuyển mới', 'Nghỉ việc', 'Tỷ lệ nghỉ việc (%)', 'Trạng thái'],
+        ...departments.map(d => [d.name, d.budget, d.current, d.hiring, d.newHires, d.resignations, d.turnoverRate, d.status])
+      ];
+      addDataSheet('Bộ phận', deptData);
+
+      // 4. Trends
+      const trendsData = [
+        ['Tháng', 'Tỷ lệ nghỉ việc (%)'],
+        ...monthlyStats.map(s => [s.month, s.rate])
+      ];
+      addDataSheet('Xu hướng', trendsData);
+
+      // 5. Age Groups
+      const ageData = [
+        ['Độ tuổi', 'Số lượng', 'Tỷ lệ'],
+        ...ageGroups.map(a => [a.label, a.value, a.percentage])
+      ];
+      addDataSheet('Độ tuổi', ageData);
+
+      // 6. Alerts & Evals
+      const alertData = [
+        ['Cảnh báo nhân sự', '', ''],
+        ['Bộ phận', 'Nội dung', 'Mức độ'],
+        ...alerts.map(a => [a.department, a.message, a.type === 'danger' ? 'Đỏ' : a.type === 'warning' ? 'Vàng' : 'Xanh']),
+        ['', '', ''],
+        ['Đánh giá chung', '', ''],
+        ['Nội dung', '', ''],
+        ...evaluations.map(e => [e.text, '', ''])
+      ];
+      addDataSheet('Cảnh báo và Đánh giá', alertData);
+
+      // Save
+      const buffer = await workbook.xlsx.writeBuffer();
+      saveAs(new Blob([buffer]), `HR_OVERVIEW_DASHBOARD_Thang_${String(selectedMonth).padStart(2, '0')}_2026.xlsx`);
+
+    } catch (err) {
+      console.error("Error exporting Excel:", err);
+      alert("Có lỗi xảy ra khi xuất báo cáo. Vui lòng thử bấm nút 'Open in new tab' (biểu tượng mở ở góc phải trên cùng bên ngoài thanh công cụ) và tải lại.");
+    } finally {
+      setIsExportingPDF(false);
     }
-
-    saveEmployeesToStorage(updated);
-    setIsModalOpen(false);
   };
 
-  const handleImportEmployees = (newEmployees: Employee[]) => {
-    const updated = [...employees];
-    newEmployees.forEach(newEmp => {
-      const idx = updated.findIndex(e => e.code === newEmp.code);
-      if (idx > -1) {
-        updated[idx] = {
-          ...updated[idx],
-          ...newEmp,
-          id: updated[idx].id
-        };
-      } else {
-        updated.push(newEmp);
-      }
-    });
-    saveEmployeesToStorage(updated);
-  };
-
-  const handleUpdateJoinDate = (id: string, newDate: string) => {
-    const updated = employees.map(emp => {
-      if (emp.id === id) {
-        return {
-          ...emp,
-          joinDate: newDate
-        };
-      }
-      return emp;
-    });
-    saveEmployeesToStorage(updated);
-  };
-
-  const handleUpdateLine = (id: string, newLine: AssemblyLine) => {
-    const updated = employees.map(emp => {
-      if (emp.id === id) {
-        return {
-          ...emp,
-          line: newLine,
-          manager: newLine === 'DCLR' ? 'KHIÊM' : 'THỊNH'
-        };
-      }
-      return emp;
-    });
-    saveEmployeesToStorage(updated);
-  };
-
-  const handleUpdateField = (id: string, field: keyof Employee, value: any) => {
-    const updated = employees.map(emp => {
-      if (emp.id === id) {
-        const updatedEmp = {
-          ...emp,
-          [field]: value
-        };
-        // Auto update manager if line is changed
-        if (field === 'line') {
-          updatedEmp.manager = value === 'DCLR' ? 'KHIÊM' : 'THỊNH';
+  const handleExportPDF = async () => {
+    if (!dashboardRef.current) return;
+    setIsExportingPDF(true);
+    try {
+      const width = dashboardRef.current.offsetWidth * 2;
+      const height = dashboardRef.current.offsetHeight * 2;
+      
+      const imgData = await htmlToImage.toPng(dashboardRef.current, { 
+        backgroundColor: '#F0F4F8', 
+        pixelRatio: 2,
+        filter: (node) => {
+          if (node instanceof HTMLElement) {
+            return !node.hasAttribute('data-html2canvas-ignore');
+          }
+          return true;
         }
-        return updatedEmp;
-      }
-      return emp;
-    });
-    saveEmployeesToStorage(updated);
-  };
-
-  const handleUpdateTargets = (updatedProgress: DayProgress[]) => {
-    saveProgressToStorage(updatedProgress);
-  };
-
-  const getTodayString = () => {
-    const today = new Date();
-    if (today.getFullYear() < 2026) {
-      today.setFullYear(2026);
-      today.setMonth(5); // June
-      today.setDate(18);
+      });
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (height * pdfWidth) / width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`HR_OVERVIEW_DASHBOARD_Thang_${String(selectedMonth).padStart(2, '0')}_2026.pdf`);
+    } catch (err) {
+      console.error("Error exporting PDF:", err);
+      alert("Có lỗi xảy ra khi xuất báo cáo. Vui lòng thử bấm nút 'Open in new tab' (biểu tượng mở ở góc phải trên cùng bên ngoài thanh công cụ) và tải lại.");
+    } finally {
+      setIsExportingPDF(false);
     }
-    const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
-    const dd = String(today.getDate()).padStart(2, '0');
-    const mmm = monthNames[today.getMonth()];
-    const yyyy = today.getFullYear();
-    const dayName = days[today.getDay()];
-    
-    return `${dd}-${mmm}-${yyyy} (${dayName})`;
   };
 
-  if (!isDataLoaded) {
+  if (view === 'admin') {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="flex flex-col items-center gap-3">
-          <RefreshCw size={40} className="text-blue-600 animate-spin" />
-          <p className="text-sm font-semibold text-slate-500">Đang khởi tạo hệ thống quản lý...</p>
-        </div>
-      </div>
+      <DataEntry 
+        onBack={() => {
+          setView('dashboard');
+          fetchData(selectedMonth); // Refresh data when coming back
+        }}
+        initialStats={stats}
+        initialDepartments={departments}
+        initialMonthlyStats={monthlyStats}
+        initialAgeGroups={ageGroups}
+        initialAlerts={alerts}
+        initialEvaluations={evaluations}
+      />
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 antialiased font-sans">
-      
-      {/* DECORATION TOP BAR */}
-      <header className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white shadow-md relative overflow-hidden" id="app-header">
+    <div className="min-h-screen bg-[#F0F4F8] font-sans text-gray-900 p-4 md:p-6" ref={dashboardRef}>
+      <div className="max-w-[1400px] mx-auto space-y-6">
         
-        {/* Subtle geometric lines */}
-        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px]"></div>
-
-        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
-              QUẢN LÝ NHÂN SỰ DCLR
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-3 w-auto">
-            {/* Clock Widget / simulated time indicator */}
-            <div className="bg-slate-800/80 backdrop-blur-xs border border-slate-700 rounded-xl px-4 py-2.5 flex items-center gap-4">
-              <div className="text-right">
-                <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-widest">Thời gian Chuyền</span>
-                <span className="text-xs font-extrabold text-blue-400">{getTodayString()}</span>
+        {/* Header */}
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-gray-200 pb-6 relative">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-xl text-white shadow-lg shadow-blue-200">
+              <Users size={32} />
+            </div>
+            <div>
+              <h1 className="text-3xl font-display font-black text-[#003366] uppercase tracking-tighter">
+                BÁO CÁO ĐIỀU HÀNH NHÂN SỰ
+              </h1>
+              <div className="flex items-center text-sm font-bold text-gray-500 uppercase tracking-widest mt-1">
+                THÁNG 
+                <select 
+                  className="mx-1 bg-transparent border border-gray-300 rounded px-2 py-0.5 text-[#003366] focus:outline-none focus:border-blue-600 cursor-pointer hover:bg-gray-50 transition-colors"
+                  value={selectedMonth}
+                  onChange={(e) => {
+                    setSelectedMonth(Number(e.target.value));
+                  }}
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                    <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
+                  ))}
+                </select>
+                NĂM {new Date().getFullYear()}
               </div>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
             </div>
           </div>
-        </div>
-      </header>
-
-
-      {/* INTERPRETATIVE QUICK CONTROL PANEL */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-stretch md:items-center py-3 gap-4">
           
-          {/* TAB CHANGER NAVIGATION */}
-          <nav className="flex gap-1.5 bg-slate-100 p-1 rounded-xl w-full md:w-auto overflow-x-auto" id="app-tabs">
-            <button
-              onClick={() => setActiveTab('monitors')}
-              className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap ${activeTab === 'monitors' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
-            >
-              <Users size={14} />
-              <span>GĐ 1: Giám Sát & Danh Sách</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('recruitments')}
-              className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap ${activeTab === 'recruitments' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
-            >
-              <ClipboardList size={14} />
-              <span>GĐ 2: Theo dõi Tiến độ Tuyển dụng</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('analytics')}
-              className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap ${activeTab === 'analytics' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
-            >
-              <BarChart3 size={14} />
-              <span>GĐ 3: Biểu Đồ & Lý do Nghỉ việc</span>
-            </button>
-          </nav>
-
-          {/* TEAM CHANGER SELECT LINKED DIRECTLY TO DCLR IN IMAGE */}
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3.5 py-1 rounded-xl">
-            <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Phạm vi Chuyền:</span>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setSelectedLine('ALL')}
-                className={`px-2.5 py-1 text-[11px] font-extrabold rounded-lg transition ${selectedLine === 'ALL' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-200'}`}
-              >
-                TẤT CẢ
-              </button>
-              <button
-                onClick={() => setSelectedLine('DCLR')}
-                className={`px-2.5 py-1 text-[11px] font-extrabold rounded-lg transition ${selectedLine === 'DCLR' ? 'bg-indigo-650 bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-200'}`}
-              >
-                DCLR (Khiêm)
-              </button>
-              <button
-                onClick={() => setSelectedLine('DC RMA BG')}
-                className={`px-2.5 py-1 text-[11px] font-extrabold rounded-lg transition ${selectedLine === 'DC RMA BG' ? 'bg-indigo-650 bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-200'}`}
-              >
-                RMA BG (Thịnh)
-              </button>
+          <div className="flex items-center gap-6">
+            <div className="text-right hidden md:block">
+              <p className="text-xs font-bold text-gray-400 uppercase">Ngày cập nhật: {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
             </div>
+            {!isExportingPDF && (
+              <div className="flex items-center gap-2" data-html2canvas-ignore>
+                <button 
+                  onClick={handleExportPDF}
+                  disabled={isExportingPDF}
+                  className="px-3 py-2 bg-white rounded-lg border border-gray-200 text-red-500 hover:text-red-600 hover:border-red-300 transition-all shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                  title="Xuất file PDF"
+                >
+                  <span className="font-bold text-sm">PDF</span>
+                </button>
+                <button 
+                  onClick={handleExportExcel}
+                  className="p-2 bg-white rounded-lg border border-gray-200 text-gray-400 hover:text-green-600 hover:border-green-300 transition-all shadow-sm flex items-center justify-center gap-2"
+                  title="Xuất file Excel"
+                >
+                  <Download size={20} />
+                </button>
+                <button 
+                  onClick={() => setView('admin')}
+                  className="p-2 bg-white rounded-lg border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-300 transition-all shadow-sm ml-2"
+                  title="Quản lý dữ liệu"
+                >
+                  <SettingsIcon size={20} />
+                </button>
+              </div>
+            )}
           </div>
+        </header>
 
-        </div>
+        {/* Dashboard Content */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key="dashboard-content"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="space-y-6"
+          >
+            {/* Top Section: KPIs & Gauge */}
+            <motion.section 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="grid grid-cols-1 lg:grid-cols-4 gap-6"
+            >
+              <div className="lg:col-span-3">
+                <KpiCards stats={stats} selectedMonth={selectedMonth} />
+              </div>
+              <div className="lg:col-span-1">
+                <GaugeChart 
+                  percentage={Number(((stats.totalCurrent / stats.totalBudget) * 100).toFixed(1))}
+                  numerator={stats.totalCurrent}
+                  denominator={stats.totalBudget}
+                />
+              </div>
+            </motion.section>
+
+            {/* Middle Section: Table & Alerts */}
+            <motion.section 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="grid grid-cols-1 lg:grid-cols-4 gap-6"
+            >
+              <div className="lg:col-span-3">
+                <DepartmentTable departments={departments} selectedMonth={selectedMonth} />
+              </div>
+              <div className="lg:col-span-1">
+                <PersonnelAlerts alerts={alerts} />
+              </div>
+            </motion.section>
+
+            {/* Bottom Section: Charts & Evaluation */}
+            <motion.section 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+            >
+              <div className="lg:col-span-1">
+                <PersonnelStructureChart departments={departments} />
+              </div>
+              <div className="lg:col-span-1">
+                <AgeStructureChart ageData={ageGroups} />
+              </div>
+              <div className="lg:col-span-1">
+                <TurnoverTrendChart stats={monthlyStats} />
+              </div>
+              <div className="lg:col-span-1">
+                <GeneralEvaluation evaluations={evaluations} />
+              </div>
+            </motion.section>
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Footer info (optional) */}
+        <footer className="pt-8 text-center text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em]">
+          Hệ thống Quản trị Nhân sự Sunhouse • Bản quyền 2026
+        </footer>
       </div>
-
-
-      {/* MAIN CONTAINER CONTENT BODY */}
-      <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 space-y-6">
-        
-        {/* STATS OVERVIEW IS CONSTANTLY VISIBLE TO REDUCE BLIND SPOTS */}
-        <StatsSection employees={employees} selectedLine={selectedLine} />
-
-        {/* TRANSITIONAL TAB STATES ANIMATED WITH MOTION */}
-        <div className="mt-4">
-          <AnimatePresence mode="wait">
-            
-            {/* TAB 1: OVERVIEW DIRECTORY */}
-            {activeTab === 'monitors' && (
-              <motion.div
-                key="monitors-tab"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.2 }}
-                className="space-y-6"
-              >
-                <EmployeeTable
-                  employees={employees}
-                  onAddClick={handleAddEmployeeClick}
-                  onEditClick={handleEditEmployeeClick}
-                  onResignClick={handleResignEmployeeClick}
-                  onDeleteClick={handleDeleteEmployee}
-                  onImportEmployees={handleImportEmployees}
-                  onUpdateJoinDate={handleUpdateJoinDate}
-                  onUpdateLine={handleUpdateLine}
-                  onUpdateField={handleUpdateField}
-                />
-              </motion.div>
-            )}
-
-            {/* TAB 2: EXCEL RECRUIMENT BOARD */}
-            {activeTab === 'recruitments' && (
-              <motion.div
-                key="recruitments-tab"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.2 }}
-              >
-                <PlanProgressTable
-                  employees={employees}
-                  dayProgress={dayProgress}
-                  onUpdateTargets={handleUpdateTargets}
-                />
-              </motion.div>
-            )}
-
-            {/* TAB 3: HR ANALYTICS CHARTS */}
-            {activeTab === 'analytics' && (
-              <motion.div
-                key="analytics-tab"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.2 }}
-              >
-                <AnalyticsSection 
-                  employees={employees} 
-                  selectedLine={selectedLine} 
-                />
-              </motion.div>
-            )}
-
-          </AnimatePresence>
-        </div>
-      </main>
-
-
-      {/* CENTRALIZED MODAL ENGINE */}
-      <EmployeeModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleSaveEmployee}
-        employee={selectedEmployee}
-        mode={modalMode}
-      />
-
-      {/* CUSTOM BEAUTIFUL DELETE CONFIRMATION MODAL */}
-      <AnimatePresence>
-        {deleteConfirmationId && (() => {
-          const emp = employees.find(e => e.id === deleteConfirmationId);
-          if (!emp) return null;
-          return (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                transition={{ duration: 0.15 }}
-                className="bg-white rounded-2xl shadow-xl border border-slate-150 max-w-md w-full overflow-hidden"
-              >
-                {/* Header info */}
-                <div className="p-6 pb-4">
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 bg-rose-50 text-rose-600 rounded-xl border border-rose-100 flex-shrink-0">
-                      <AlertTriangle size={24} />
-                    </div>
-                    <div className="space-y-1">
-                      <h3 className="font-bold text-slate-950 text-base leading-6">Xác nhận xóa nhân sự</h3>
-                      <p className="text-slate-500 text-xs leading-relaxed">
-                        Hành động này sẽ xóa vĩnh viễn dữ liệu của nhân sự khỏi hệ thống và không thể khôi phục lại.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Main content body showing targeted employee details */}
-                <div className="bg-slate-50/70 border-y border-slate-100 px-6 py-4 space-y-3">
-                  <div className="grid grid-cols-3 gap-y-2 text-xs">
-                    <span className="text-slate-400 font-medium col-span-1">Mã nhân sự:</span>
-                    <span className="font-mono font-bold text-slate-700 col-span-2">{emp.code}</span>
-
-                    <span className="text-slate-400 font-medium col-span-1">Họ và Tên:</span>
-                    <span className="font-bold text-slate-900 col-span-2">{emp.fullName}</span>
-
-                    <span className="text-slate-400 font-medium col-span-1">Dây chuyền:</span>
-                    <span className="font-semibold text-slate-800 col-span-2">{emp.line}</span>
-                  </div>
-                </div>
-
-                {/* Action controls */}
-                <div className="px-6 py-4 flex items-center justify-end gap-3 bg-white">
-                  <button
-                    onClick={() => setDeleteConfirmationId(null)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 rounded-xl border border-slate-200 transition cursor-pointer"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button
-                    onClick={handleConfirmDelete}
-                    className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-xl shadow-sm hover:shadow transition cursor-pointer"
-                  >
-                    Đồng ý xóa
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          );
-        })()}
-      </AnimatePresence>
-
     </div>
   );
 }

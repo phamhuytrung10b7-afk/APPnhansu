@@ -46,6 +46,20 @@ export interface AppSettings {
   productionOrders: string[]; // Danh sách mã lệnh sản xuất (LSX)
 }
 
+export interface ModelBOMItem {
+  partCode: string;
+  partName: string;
+  quantity: number;
+  unit: string;
+}
+
+export interface ModelBOM {
+  id: string;
+  name: string; // Model name / Lệnh sản xuất
+  items: ModelBOMItem[];
+  createdAt: string;
+}
+
 export type ViewTab =
   | 'dashboard'
   | 'parts'

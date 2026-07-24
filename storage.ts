@@ -1,4 +1,4 @@
-import { Part, Transaction, StockCheckRecord, AppSettings, ContainerBatch, ContainerQrTag, FifoLot } from './types';
+import { Part, Transaction, StockCheckRecord, AppSettings, ContainerBatch, ContainerQrTag, FifoLot, ModelBOM, ModelBOMItem } from './types';
 import { initialParts, initialTransactions, initialSettings } from './sampleData';
 import * as XLSX from 'xlsx';
 
@@ -8,6 +8,7 @@ const STOCK_CHECKS_KEY = 'thekho_stock_checks_v1';
 const SETTINGS_KEY = 'thekho_settings_v1';
 const CONTAINER_BATCHES_KEY = 'thekho_container_batches_v1';
 const USED_QR_TOKENS_KEY = 'thekho_used_qr_tokens_v1';
+const MODEL_BOMS_KEY = 'thekho_model_boms_v1';
 
 // Helper for initial load
 export const storageService = {
@@ -609,6 +610,97 @@ export const storageService = {
   deleteContainerBatch(id: string): void {
     const batches = this.getContainerBatches().filter((b) => b.id !== id);
     localStorage.setItem(CONTAINER_BATCHES_KEY, JSON.stringify(batches));
+  },
+
+  // Model BOMs
+  getModelBOMs(): ModelBOM[] {
+    const raw = localStorage.getItem(MODEL_BOMS_KEY);
+    if (!raw) return [];
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  },
+
+  saveModelBOM(bom: ModelBOM): void {
+    const boms = this.getModelBOMs();
+    const index = boms.findIndex(b => b.name.toLowerCase() === bom.name.toLowerCase());
+    if (index !== -1) {
+      boms[index] = bom;
+    } else {
+      boms.unshift(bom);
+    }
+    localStorage.setItem(MODEL_BOMS_KEY, JSON.stringify(boms));
+  },
+
+  deleteModelBOM(id: string): void {
+    const boms = this.getModelBOMs().filter(b => b.id !== id);
+    localStorage.setItem(MODEL_BOMS_KEY, JSON.stringify(boms));
+  },
+
+  importModelBOMFromRows(rawRows: any[], modelName: string): { added: number; name: string } {
+    const items: ModelBOMItem[] = [];
+    const validPartCodes = new Set(this.getParts().map(p => p.code.toLowerCase()));
+
+    rawRows.forEach(row => {
+      let itemCode = '';
+      let itemName = '';
+      let quantityVal: any = 0;
+      let unit = '';
+
+      if (Array.isArray(row)) {
+        itemCode = String(row[0] ?? '').trim();
+        itemName = String(row[1] ?? '').trim();
+        quantityVal = row[2];
+        unit = String(row[3] ?? '').trim();
+      } else if (typeof row === 'object' && row !== null) {
+        itemCode = String(row['Item'] || row['Mã linh kiện'] || row['Code'] || '').trim();
+        itemName = String(row['Description'] || row['Tên linh kiện'] || row['Name'] || '').trim();
+        quantityVal = row['Quantity'] ?? row['Số lượng'] ?? row['Định mức'] ?? 0;
+        unit = String(row['Unit'] || row['Đơn vị'] || row['ĐVT'] || '').trim();
+      }
+
+      if (!itemCode || !itemName) return;
+      if (itemCode.toLowerCase() === 'item') return;
+
+      // Only import items that exist in our valid parts list
+      if (!validPartCodes.has(itemCode.toLowerCase())) return;
+
+      let quantity = 0;
+      if (typeof quantityVal === 'number') {
+        quantity = quantityVal;
+      } else {
+        let s = String(quantityVal).trim();
+        if (s.includes(',') && s.includes('.')) {
+          s = s.replace(/\./g, '').replace(',', '.');
+        } else if (s.includes(',')) {
+          s = s.replace(',', '.');
+        }
+        quantity = parseFloat(s) || 0;
+      }
+
+      if (quantity > 0) {
+        items.push({
+          partCode: itemCode,
+          partName: itemName,
+          quantity,
+          unit: unit || 'Cái'
+        });
+      }
+    });
+
+    if (items.length > 0) {
+      const bom: ModelBOM = {
+        id: 'bom-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+        name: modelName,
+        items,
+        createdAt: new Date().toISOString()
+      };
+      this.saveModelBOM(bom);
+      return { added: items.length, name: modelName };
+    }
+    return { added: 0, name: modelName };
   },
 
   // Used QR Tokens (To prevent scanning the same Cont QR tag twice)

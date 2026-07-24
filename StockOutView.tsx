@@ -39,7 +39,13 @@ export const StockOutView: React.FC<StockOutViewProps> = ({ parts, settings, onS
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
-  const [mainTab, setMainTab] = useState<'scan' | 'manual'>('scan');
+  const [mainTab, setMainTab] = useState<'scan' | 'model' | 'manual'>('model');
+
+  // Model-based stock out states
+  const [selectedBOMId, setSelectedBOMId] = useState<string>('');
+  const [modelQty, setModelQty] = useState<number>(1);
+  const [bomChecks, setBomChecks] = useState<Record<string, boolean>>({});
+
   const [scannedPartForQuickOut, setScannedPartForQuickOut] = useState<Part | null>(null);
   const [quickOutQty, setQuickOutQty] = useState<number>(10);
   const [autoScanHistory, setAutoScanHistory] = useState<
@@ -169,31 +175,44 @@ export const StockOutView: React.FC<StockOutViewProps> = ({ parts, settings, onS
       </div>
 
       {/* Main Mode Selection Tabs */}
-      <div className="flex border-b border-slate-200 bg-slate-100/80 p-1.5 rounded-2xl gap-2">
+      <div className="flex border-b border-slate-200 bg-slate-100/80 p-1.5 rounded-2xl gap-2 overflow-x-auto whitespace-nowrap scrollbar-hide">
+        <button
+          type="button"
+          onClick={() => setMainTab('model')}
+          className={`px-4 py-3 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+            mainTab === 'model'
+              ? 'bg-pink-600 text-white shadow-md'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          <span>1. XUẤT THEO MODEL (BOM)</span>
+        </button>
+
         <button
           type="button"
           onClick={() => setMainTab('scan')}
-          className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+          className={`px-4 py-3 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center space-x-2 cursor-pointer ${
             mainTab === 'scan'
               ? 'bg-indigo-800 text-white shadow-md'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
           }`}
         >
           <Zap className="w-4 h-4 text-cyan-300 animate-pulse" />
-          <span>1. QUÉT MÃ TỰ ĐỘNG XUẤT KHO (ƯU TIÊN)</span>
+          <span>2. QUÉT MÃ TỰ ĐỘNG (NHANH)</span>
         </button>
 
         <button
           type="button"
           onClick={() => setMainTab('manual')}
-          className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+          className={`px-4 py-3 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center space-x-2 cursor-pointer ${
             mainTab === 'manual'
               ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
           }`}
         >
           <FileText className="w-4 h-4 text-slate-500" />
-          <span>2. XUẤT KHO THỦ CÔNG (DỰ PHÒNG)</span>
+          <span>3. XUẤT THỦ CÔNG</span>
         </button>
       </div>
 
@@ -214,7 +233,246 @@ export const StockOutView: React.FC<StockOutViewProps> = ({ parts, settings, onS
         </div>
       )}
 
-      {/* TAB 1: AUTO SCAN & QUICK STOCK OUT MODE */}
+      {/* TAB 1: MODEL-BASED STOCK OUT */}
+      {mainTab === 'model' && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Chọn Model (Lệnh Sản Xuất) <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={selectedBOMId}
+                onChange={(e) => {
+                  setSelectedBOMId(e.target.value);
+                  const selectedBom = storageService.getModelBOMs().find(b => b.id === e.target.value);
+                  if (selectedBom) {
+                    const initialChecks: Record<string, boolean> = {};
+                    selectedBom.items.forEach(item => {
+                      initialChecks[item.partCode] = true;
+                    });
+                    setBomChecks(initialChecks);
+                  } else {
+                    setBomChecks({});
+                  }
+                }}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold focus:ring-2 focus:ring-pink-500 outline-hidden"
+              >
+                <option value="">-- Chọn Model (BOM) --</option>
+                {storageService.getModelBOMs().map(bom => (
+                  <option key={bom.id} value={bom.id}>{bom.name} ({bom.items.length} LK)</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Số Lượng Sản Xuất <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={modelQty}
+                onChange={(e) => setModelQty(Number(e.target.value) || 0)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-center focus:ring-2 focus:ring-pink-500 outline-hidden"
+              />
+            </div>
+          </div>
+
+          {selectedBOMId && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-slate-800 text-sm flex items-center">
+                  <FileCode className="w-4 h-4 text-pink-600 mr-2" />
+                  Danh Sách Linh Kiện Sẽ Xuất Theo Định Mức
+                </h3>
+                <span className="text-xs bg-pink-100 text-pink-800 px-2 py-1 rounded-lg font-bold">
+                  {Object.values(bomChecks).filter(Boolean).length} / {storageService.getModelBOMs().find(b => b.id === selectedBOMId)?.items.length} linh kiện chọn xuất
+                </span>
+              </div>
+              
+              <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-96">
+                <table className="w-full text-left text-xs whitespace-nowrap">
+                  <thead className="bg-slate-50 text-slate-600 sticky top-0 shadow-sm">
+                    <tr>
+                      <th className="p-3 w-10">
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 rounded text-pink-600 focus:ring-pink-500 cursor-pointer"
+                          checked={
+                            storageService.getModelBOMs().find(b => b.id === selectedBOMId)?.items.length! > 0 &&
+                            storageService.getModelBOMs().find(b => b.id === selectedBOMId)?.items.every(i => bomChecks[i.partCode])
+                          }
+                          onChange={(e) => {
+                            const selectedBom = storageService.getModelBOMs().find(b => b.id === selectedBOMId);
+                            if (selectedBom) {
+                              const newChecks: Record<string, boolean> = {};
+                              selectedBom.items.forEach(item => {
+                                newChecks[item.partCode] = e.target.checked;
+                              });
+                              setBomChecks(newChecks);
+                            }
+                          }}
+                        />
+                      </th>
+                      <th className="p-3 font-semibold">Mã Linh Kiện</th>
+                      <th className="p-3 font-semibold">Tên Linh Kiện</th>
+                      <th className="p-3 font-semibold text-right">Định Mức</th>
+                      <th className="p-3 font-semibold text-right">SL Cần Xuất</th>
+                      <th className="p-3 font-semibold text-right">Tồn Kho</th>
+                      <th className="p-3 font-semibold text-center">Trạng Thái</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {storageService.getModelBOMs().find(b => b.id === selectedBOMId)?.items.map((item, idx) => {
+                      const sysPart = parts.find(p => p.code.toLowerCase() === item.partCode.toLowerCase());
+                      const neededQty = item.quantity * modelQty;
+                      const hasEnough = sysPart ? sysPart.currentStock >= neededQty : false;
+                      const isChecked = bomChecks[item.partCode] || false;
+                      
+                      return (
+                        <tr key={idx} className={`hover:bg-slate-50 transition-colors ${!isChecked ? 'opacity-50 grayscale' : ''}`}>
+                          <td className="p-3">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 rounded text-pink-600 focus:ring-pink-500 cursor-pointer"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                setBomChecks(prev => ({
+                                  ...prev,
+                                  [item.partCode]: e.target.checked
+                                }));
+                              }}
+                            />
+                          </td>
+                          <td className="p-3 font-mono font-bold text-slate-800">{item.partCode}</td>
+                          <td className="p-3 text-slate-600 max-w-[200px] truncate" title={item.partName}>{item.partName}</td>
+                          <td className="p-3 text-right font-medium text-slate-500">{item.quantity}</td>
+                          <td className="p-3 text-right font-black text-pink-600">{neededQty.toLocaleString('vi-VN')} {item.unit}</td>
+                          <td className="p-3 text-right font-bold text-blue-700">
+                            {sysPart ? `${sysPart.currentStock.toLocaleString('vi-VN')} ${sysPart.unit}` : '0 Cái'}
+                          </td>
+                          <td className="p-3 text-center">
+                            {!sysPart ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
+                                Mã mới
+                              </span>
+                            ) : hasEnough ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700">
+                                Đủ xuất
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700">
+                                Thiếu hàng
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Action Buttons for Model */}
+              <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                <div className="flex-1 w-full grid grid-cols-2 gap-4">
+                   <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Người Lấy <span className="text-red-500">*</span>
+                    </label>
+                    <SearchableSelect
+                      options={settings.staffList || []}
+                      value={person}
+                      onChange={(val) => setPerson(val)}
+                      placeholder="Chọn người nhận..."
+                      allowCustom={true}
+                    />
+                  </div>
+                   <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Ngày Giờ <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={dateTime}
+                      onChange={(e) => setDateTime(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500 outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const selectedBom = storageService.getModelBOMs().find(b => b.id === selectedBOMId);
+                    if (!selectedBom) return;
+                    if (modelQty <= 0) {
+                      setMessage({ type: 'error', text: 'Số lượng sản xuất phải lớn hơn 0!' });
+                      return;
+                    }
+
+                    // Collect items to out
+                    const itemsToOut = selectedBom.items.filter(i => bomChecks[i.partCode]);
+                    if (itemsToOut.length === 0) {
+                      setMessage({ type: 'error', text: 'Chưa có linh kiện nào được chọn để xuất!' });
+                      return;
+                    }
+
+                    // Check stock
+                    const insufficientParts: string[] = [];
+                    for (const item of itemsToOut) {
+                      const sysPart = parts.find(p => p.code.toLowerCase() === item.partCode.toLowerCase());
+                      const neededQty = item.quantity * modelQty;
+                      if (!sysPart || sysPart.currentStock < neededQty) {
+                        insufficientParts.push(item.partCode);
+                      }
+                    }
+
+                    if (insufficientParts.length > 0) {
+                      setMessage({ type: 'error', text: `Có ${insufficientParts.length} linh kiện không đủ tồn kho: ${insufficientParts.join(', ')}` });
+                      return;
+                    }
+
+                    // Perform stock out
+                    try {
+                      let totalOut = 0;
+                      itemsToOut.forEach(item => {
+                        const sysPart = parts.find(p => p.code.toLowerCase() === item.partCode.toLowerCase());
+                        if (sysPart) {
+                          const neededQty = item.quantity * modelQty;
+                          storageService.addStockOut({
+                            partId: sysPart.id,
+                            quantity: neededQty,
+                            date: new Date(dateTime).toISOString(),
+                            person: person.trim() || 'Lê Hoàng Nam',
+                            productionOrder: selectedBom.name,
+                            reasonOrPurpose: 'Sản xuất theo Model',
+                            notes: `SL SX: ${modelQty}`
+                          });
+                          totalOut++;
+                        }
+                      });
+                      
+                      setMessage({ type: 'success', text: `Đã xuất kho thành công ${totalOut} linh kiện cho Model ${selectedBom.name}!` });
+                      // Reset modelQty
+                      setModelQty(1);
+                      onSuccess();
+                    } catch (err: any) {
+                      setMessage({ type: 'error', text: err.message || 'Lỗi khi xuất kho hàng loạt' });
+                    }
+                  }}
+                  className="w-full sm:w-auto px-6 py-4 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-sm font-bold shadow-lg transition-all cursor-pointer flex items-center justify-center space-x-2 shrink-0"
+                >
+                  <ArrowUpRight className="w-5 h-5" />
+                  <span>XUẤT KHO HÀNG LOẠT THEO BOM</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 2: AUTO SCAN & QUICK STOCK OUT MODE */}
       {mainTab === 'scan' && (
         <div className="space-y-6">
           <InlineQrScanner

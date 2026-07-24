@@ -426,6 +426,92 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
+        {/* QUẢN LÝ ĐỊNH MỨC MODEL (BOM) */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-800 text-sm flex items-center">
+              <FileCode className="w-4 h-4 text-pink-600 mr-2" />
+              Quản Lý Định Mức Model (BOM)
+            </h3>
+            <span className="text-xs text-slate-400 font-medium">{storageService.getModelBOMs().length} Models</span>
+          </div>
+          <p className="text-xs text-slate-500">
+            Tải lên file Excel định mức linh kiện cho từng Model (Lệnh sản xuất).
+            Hệ thống sẽ dựa vào định mức này để xuất kho tự động hàng loạt.
+          </p>
+
+          <div className="flex items-center space-x-2">
+            <input
+              type="text"
+              id="modelBOMName"
+              placeholder="Tên Model (VD: APB3551)..."
+              className="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-pink-700 focus:ring-2 focus:ring-pink-500 outline-hidden"
+            />
+            <label className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors shrink-0 flex items-center space-x-1">
+              <Upload className="w-4 h-4" />
+              <span>Nhập Từ Excel</span>
+              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => {
+                const nameInput = document.getElementById('modelBOMName') as HTMLInputElement;
+                const name = nameInput.value.trim();
+                if (!name) {
+                  setMessage({ type: 'error', text: 'Vui lòng nhập tên Model trước khi tải lên Excel!' });
+                  e.target.value = '';
+                  return;
+                }
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                import('xlsx').then(XLSX => {
+                  const reader = new FileReader();
+                  reader.onload = (evt) => {
+                    const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const rawRows = XLSX.utils.sheet_to_json(worksheet);
+
+                    const result = storageService.importModelBOMFromRows(rawRows, name);
+                    if (result.added > 0) {
+                      setMessage({ type: 'success', text: `Đã lưu định mức cho Model ${result.name} với ${result.added} linh kiện!` });
+                      nameInput.value = '';
+                      onRefreshAll(); // Refresh to update count
+                    } else {
+                      setMessage({ type: 'error', text: 'Không tìm thấy dữ liệu hợp lệ trong file Excel!' });
+                    }
+                  };
+                  reader.readAsArrayBuffer(file);
+                });
+                e.target.value = '';
+              }} />
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-2 pt-1 max-h-60 overflow-y-auto">
+            {storageService.getModelBOMs().map((bom, idx) => (
+              <div
+                key={bom.id}
+                className="flex items-center justify-between p-3 bg-pink-50 border border-pink-200 text-pink-900 rounded-xl text-xs font-mono"
+              >
+                <div>
+                  <strong className="text-sm">{bom.name}</strong>
+                  <p className="text-[10px] text-pink-600 font-sans mt-0.5">{bom.items.length} linh kiện trong định mức</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    storageService.deleteModelBOM(bom.id);
+                    onRefreshAll();
+                    setMessage({ type: 'success', text: `Đã xóa Model BOM ${bom.name}` });
+                  }}
+                  className="p-1.5 bg-white text-pink-400 hover:text-red-600 rounded-lg shadow-xs cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Save Button */}
         <div className="pt-2 flex justify-end">
           <button

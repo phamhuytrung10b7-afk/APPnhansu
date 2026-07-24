@@ -2,6 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Part, AppSettings, ContainerBatch, ContainerQrTag } from './types';
 import { QRCodeSVG } from 'qrcode.react';
+import { printHtml } from './printHelper';
+import { getSavedPrintConfigs, savePrintConfigs, PrintLayout, AllPrintConfigs } from './printConfig';
+
 import {
   FileSpreadsheet,
   Upload,
@@ -15,8 +18,8 @@ import {
   Package,
   Layers,
   Search,
-  Check,
-  Eye,
+  Check, Settings2,
+  Eye, 
   Settings,
   History,
   Trash2,
@@ -52,7 +55,15 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
   const [isAddingNewParts, setIsAddingNewParts] = useState(false);
   const [addedSuccessMsg, setAddedSuccessMsg] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'import' | 'history' | 'preview'>('import');
-  const [labelLayout, setLabelLayout] = useState<'double' | 'single' | 'a7'>('double'); // 'double' = 73x22mm (2 tem / hàng), 'single' = 35x22mm
+  const [labelLayout, setLabelLayout] = useState<'double' | 'single' | 'a7'>('double');
+  const [printConfigs, setPrintConfigs] = useState<AllPrintConfigs>(getSavedPrintConfigs());
+  const printRef = useRef<HTMLDivElement>(null);
+  const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    savePrintConfigs(printConfigs);
+  }, [printConfigs]);
+ // 'double' = 73x22mm (2 tem / hàng), 'single' = 35x22mm
   const [searchTerm, setSearchTerm] = useState('');
   const [savedBatches, setSavedBatches] = useState<ContainerBatch[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -262,7 +273,28 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
   };
 
   const handlePrint = () => {
-    window.print();
+    if (printRef.current) {
+      const styles = `
+        .label-row {
+          display: flex;
+          flex-direction: row;
+          justify-content: center;
+          align-items: center;
+          box-sizing: border-box;
+          page-break-after: always;
+          break-after: page;
+          overflow: hidden;
+          background-color: white;
+        }
+        .single-label {
+          box-sizing: border-box;
+          display: flex;
+          overflow: hidden;
+          background-color: white;
+        }
+      `;
+      printHtml(printRef.current.innerHTML, styles);
+    }
   };
 
   // Build array of label items to print based on printCopies
@@ -382,20 +414,49 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3 text-xs font-semibold text-slate-700">
-            <div className="flex items-center space-x-1">
-              <span className="text-slate-500">Khổ giấy:</span>
-              <select
-                value={labelLayout}
-                onChange={(e) => setLabelLayout(e.target.value as 'double' | 'single')}
-                className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg font-bold text-emerald-800 focus:outline-hidden cursor-pointer"
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center space-x-3 text-xs font-semibold text-slate-700">
+              <div className="flex items-center space-x-1">
+                <span className="text-slate-500">Khổ giấy:</span>
+                <select
+                  value={labelLayout}
+                  onChange={(e) => setLabelLayout(e.target.value as 'double' | 'single' | 'a7')}
+                  className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg font-bold text-emerald-800 focus:outline-hidden cursor-pointer"
+                >
+                  <option value="double">Tem Đôi (73x22mm)</option>
+                  <option value="single">Tem Đơn (35x22mm)</option>
+                  <option value="a7">Khổ A7 (74x105mm)</option>
+                </select>
+              </div>
+              <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border transition-colors ${
+                      showSettings ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
               >
-                <option value="double">Tem Đôi (73x22mm - 2 Tem/Hàng)</option>
-                <option value="single">Tem Đơn (35x22mm - 1 Tem/Hàng)</option>
-                <option value="a7">Khổ A7 (74x105mm - 1 Tem)</option>
-              </select>
+                  <Settings2 className="w-4 h-4" />
+                  <span>Cài đặt kích thước</span>
+              </button>
             </div>
           </div>
+          
+          {showSettings && (
+              <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl grid grid-cols-3 gap-4">
+                  <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Cỡ chữ Tên (px)</label>
+                      <input type="number" value={printConfigs[labelLayout].nameFontSize} onChange={(e) => setPrintConfigs({...printConfigs, [labelLayout]: {...printConfigs[labelLayout], nameFontSize: Number(e.target.value)}})} className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-md text-xs font-mono" />
+                  </div>
+                  <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Cỡ chữ Mã (px)</label>
+                      <input type="number" value={printConfigs[labelLayout].codeFontSize} onChange={(e) => setPrintConfigs({...printConfigs, [labelLayout]: {...printConfigs[labelLayout], codeFontSize: Number(e.target.value)}})} className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-md text-xs font-mono" />
+                  </div>
+                  <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Kích thước QR (mm)</label>
+                      <input type="number" value={printConfigs[labelLayout].qrSize} onChange={(e) => setPrintConfigs({...printConfigs, [labelLayout]: {...printConfigs[labelLayout], qrSize: Number(e.target.value)}})} className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-md text-xs font-mono" />
+                  </div>
+              </div>
+          )}
+
         </div>
 
         {/* Content Body */}
@@ -922,122 +983,44 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
       </div>
 
       
-            {/* PRINT-ONLY PORTAL */}
-      {createPortal(
-        <div className="hidden print:block print-portal-container">
-          <style>{`
-            @media print {
-              @page {
-                margin: 0;
-              }
-              body > *:not(.print-portal-container) {
-                display: none !important;
-              }
-              body {
-                background: white !important;
-                margin: 0 !important;
-                padding: 0 !important;
-              }
-              .print-portal-container {
-                display: block !important;
-                position: static !important;
-                width: 100% !important;
-                background: white !important;
-              }
-              .label-row {
-                display: flex !important;
-                flex-direction: row !important;
-                justify-content: center !important;
-                align-items: center !important;
-                box-sizing: border-box !important;
-                page-break-after: always !important;
-                break-after: page !important;
-                overflow: hidden !important;
-                background-color: white !important;
-              }
-              
-              /* Layout: Double 73x22mm */
-              .layout-double .label-row {
-                width: 73mm !important;
-                height: 22mm !important;
-                gap: 2mm !important;
-                padding: 1mm !important;
-              }
-              .layout-double .single-label {
-                width: 35mm !important;
-                height: 20mm !important;
-              }
-
-              /* Layout: Single 35x22mm */
-              .layout-single .label-row {
-                width: 35mm !important;
-                height: 22mm !important;
-                padding: 1mm !important;
-              }
-              .layout-single .single-label {
-                width: 33mm !important;
-                height: 20mm !important;
-              }
-
-              /* Layout: A7 74x105mm */
-              .layout-a7 .label-row {
-                width: 74mm !important;
-                height: 105mm !important;
-                padding: 4mm !important;
-              }
-              .layout-a7 .single-label {
-                width: 100% !important;
-                height: 100% !important;
-              }
-
-              .single-label {
-                box-sizing: border-box !important;
-                display: flex !important;
-                overflow: hidden !important;
-                background-color: white !important;
-              }
-              
-              /* A7 specifics */
-              .layout-a7 .single-label {
-                flex-direction: column !important;
-                align-items: center !important;
-                border: 1px solid #ccc !important;
-                border-radius: 4mm !important;
-                padding: 4mm !important;
-              }
-              
-              /* Double/Single specifics */
-              .layout-double .single-label, .layout-single .single-label {
-                flex-direction: row !important;
-                align-items: center !important;
-                border: 0.5px solid #ccc !important;
-                border-radius: 2mm !important;
-                padding: 1mm !important;
-              }
-            }
-          `}</style>
-          
-          <div className={`layout-${labelLayout}`}>
-            {labelRows.map((row, rowIndex) => (
-              <div key={rowIndex} className="label-row">
+                  {/* HIDDEN PRINT RENDERING */}
+      <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', visibility: 'hidden', overflow: 'hidden' }}>
+        <div ref={printRef}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {labelRows.map((row, rowIndex) => {
+              const conf = printConfigs[labelLayout];
+              return (
+              <div key={rowIndex} className="label-row" style={{ 
+                  width: `${conf.pageWidth}mm`, 
+                  height: `${conf.pageHeight}mm`,
+                  padding: `${conf.padding}mm`,
+                  gap: labelLayout === 'double' ? '2mm' : '0'
+              }}>
                 {row.map((item, colIndex) => (
-                  <div key={colIndex} className="single-label">
-                    
+                  <div key={colIndex} className="single-label" style={{
+                      width: labelLayout === 'double' ? '35mm' : (labelLayout === 'single' ? '33mm' : '100%'),
+                      height: labelLayout === 'a7' ? '100%' : '20mm',
+                      flexDirection: labelLayout === 'a7' ? 'column' : 'row',
+                      alignItems: 'center',
+                      border: labelLayout === 'a7' ? '1px solid #ccc' : '0.5px solid #ccc',
+                      borderRadius: labelLayout === 'a7' ? '4mm' : '2mm',
+                      padding: labelLayout === 'a7' ? '4mm' : '1mm'
+                  }}>
                     {labelLayout === 'a7' ? (
                         <>
                             <div style={{ textAlign: 'center', width: '100%' }}>
-                                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#555', marginBottom: '4mm', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
+                                <div style={{ fontSize: `${conf.metaFontSize}px`, fontWeight: 'bold', color: '#555', marginBottom: '4mm', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
                                     <span>CONT: {item.contNumber || contNumber}</span>
                                     <span>{item.contDate || contDate}</span>
                                 </div>
-                                <div style={{ fontSize: '24px', fontWeight: '900', color: '#000', marginBottom: '6mm', lineHeight: '1.3', wordBreak: 'break-word', overflow: 'hidden' }}>
+                                <div style={{ fontSize: `${conf.nameFontSize}px`, fontWeight: '900', color: '#000', marginBottom: '6mm', lineHeight: '1.3', wordBreak: 'break-word', overflow: 'hidden' }}>
                                     {item.name}
                                 </div>
-                                <div style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'monospace', color: '#065f46', padding: '3mm', background: '#f1f5f9', borderRadius: '2mm', display: 'inline-block' }}>
+                                <div style={{ fontSize: `${conf.codeFontSize}px`, fontWeight: 'bold', fontFamily: 'monospace', color: '#065f46', padding: '3mm', background: '#f1f5f9', borderRadius: '2mm', display: 'inline-block' }}>
                                     {item.code}
                                 </div>
                             </div>
-                            <div style={{ width: '56mm', height: '56mm', margin: '4mm 0' }}>
+                            <div style={{ width: `${conf.qrSize}mm`, height: `${conf.qrSize}mm`, margin: '4mm 0' }}>
                               <QRCodeSVG
                                 value={item.qrPayload}
                                 size={300}
@@ -1047,7 +1030,7 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
                               />
                             </div>
                             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2mm', marginTop: 'auto' }}>
-                                <div style={{ fontSize: '18px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #ccc', paddingTop: '3mm' }}>
+                                <div style={{ fontSize: `${conf.metaFontSize + 4}px`, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #ccc', paddingTop: '3mm' }}>
                                     <span>{item.unit}</span>
                                     <span style={{ fontFamily: 'monospace', fontWeight: '900', background: '#166534', color: 'white', padding: '1.5mm 4mm', borderRadius: '2mm' }}>SL: {item.quantity.toLocaleString('vi-VN')}</span>
                                 </div>
@@ -1058,8 +1041,7 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
                         </>
                     ) : (
                         <>
-                            {/* Double or Single layout */}
-                            <div style={{ width: '16mm', height: '16mm', flexShrink: 0, marginRight: '1mm' }}>
+                            <div style={{ width: `${conf.qrSize}mm`, height: `${conf.qrSize}mm`, flexShrink: 0, marginRight: '1mm' }}>
                               <QRCodeSVG
                                 value={item.qrPayload}
                                 size={128}
@@ -1069,38 +1051,36 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
                               />
                             </div>
                             <div style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', fontFamily: 'sans-serif', lineHeight: '1.1' }}>
-                              <div style={{ fontSize: '7px', fontWeight: 'bold', color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', justifyContent: 'space-between' }}>
+                              <div style={{ fontSize: `${conf.metaFontSize}px`, fontWeight: 'bold', color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', justifyContent: 'space-between' }}>
                                 <span>C: {item.contNumber || contNumber}</span>
                                 <span>{item.contDate || contDate}</span>
                               </div>
                               <div>
-                                <div style={{ fontSize: '9px', fontWeight: '900', color: '#000', maxHeight: '11mm', overflow: 'hidden', wordBreak: 'break-word', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                                <div style={{ fontSize: `${conf.nameFontSize}px`, fontWeight: '900', color: '#000', maxHeight: '11mm', overflow: 'hidden', wordBreak: 'break-word', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
                                   {item.name}
                                 </div>
-                                <div style={{ fontSize: '8px', fontWeight: 'bold', fontFamily: 'monospace', color: '#065f46', marginTop: '0.5mm' }}>
+                                <div style={{ fontSize: `${conf.codeFontSize}px`, fontWeight: 'bold', fontFamily: 'monospace', color: '#065f46', marginTop: '0.5mm' }}>
                                   {item.code}
                                 </div>
                               </div>
-                              <div style={{ fontSize: '8px', fontWeight: 'bold', borderTop: '0.5px solid #ccc', paddingTop: '0.5mm', display: 'flex', justifyContent: 'space-between' }}>
+                              <div style={{ fontSize: `${conf.metaFontSize}px`, fontWeight: 'bold', borderTop: '0.5px solid #ccc', paddingTop: '0.5mm', display: 'flex', justifyContent: 'space-between' }}>
                                 <span>{item.unit}</span>
                                 <span style={{ fontFamily: 'monospace', fontWeight: 'bold', backgroundColor: '#f59e0b', color: '#000', padding: '0 2px', borderRadius: '2px' }}>SL: {item.quantity.toLocaleString('vi-VN')}</span>
                               </div>
                             </div>
                         </>
                     )}
-
                   </div>
                 ))}
                 
                 {labelLayout === 'double' && row.length === 1 && (
-                  <div className="single-label" style={{ visibility: 'hidden' }} />
+                  <div className="single-label" style={{ visibility: 'hidden', width: '35mm' }} />
                 )}
               </div>
-            ))}
+            )})}
           </div>
-        </div>,
-        document.body
-      )}
+        </div>
+      </div>
     </div>
   );
 };

@@ -98,6 +98,7 @@ export interface FifoLot {
   id: string;
   partId: string;
   partCode: string;
+  partName: string;
   contNumber: string; // Số Cont hoặc tên lô nhập
   importDate: string; // Ngày nhập kho
   originalQty: number; // Số lượng nhập ban đầu
@@ -105,4 +106,19 @@ export interface FifoLot {
   remainingQty: number; // Số lượng còn tồn hiện tại trong mốc này
   status: 'FIFO_NEXT' | 'WAITING' | 'DEPLETED'; // FIFO_NEXT = Ưu tiên xuất trước #1
   notes?: string;
+}
+
+export interface StockCheckRecord {
+  id: string;
+  partId: string;
+  partCode: string;
+  partName: string;
+  unit: string;
+  location: string;
+  expectedQuantity: number;
+  actualQuantity: number;
+  discrepancy: number;
+  reason?: string;
+  checkDate: string;
+  checkedBy: string;
 }

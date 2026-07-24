@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Part, AppSettings, ContainerBatch, ContainerQrTag } from './types';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -51,7 +52,7 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
   const [isAddingNewParts, setIsAddingNewParts] = useState(false);
   const [addedSuccessMsg, setAddedSuccessMsg] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'import' | 'history' | 'preview'>('import');
-  const [labelLayout, setLabelLayout] = useState<'a7'>('a7'); // 'double' = 73x22mm (2 tem / hàng), 'single' = 35x22mm
+  const [labelLayout, setLabelLayout] = useState<'double' | 'single' | 'a7'>('double'); // 'double' = 73x22mm (2 tem / hàng), 'single' = 35x22mm
   const [searchTerm, setSearchTerm] = useState('');
   const [savedBatches, setSavedBatches] = useState<ContainerBatch[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -389,7 +390,8 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
                 onChange={(e) => setLabelLayout(e.target.value as 'double' | 'single')}
                 className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg font-bold text-emerald-800 focus:outline-hidden cursor-pointer"
               >
-                
+                <option value="double">Tem Đôi (73x22mm - 2 Tem/Hàng)</option>
+                <option value="single">Tem Đơn (35x22mm - 1 Tem/Hàng)</option>
                 <option value="a7">Khổ A7 (74x105mm - 1 Tem)</option>
               </select>
             </div>
@@ -919,101 +921,186 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
         </div>
       </div>
 
-      {/* PRINT-ONLY CSS CONTAINER FOR CONT LABELS */}
-      <div className="hidden print:block printable-cont-qr-labels-container">
-        <style>{`
-          @media print {
-            @page {
-              size: 74mm 105mm;
-              margin: 0;
+      
+            {/* PRINT-ONLY PORTAL */}
+      {createPortal(
+        <div className="hidden print:block print-portal-container">
+          <style>{`
+            @media print {
+              @page {
+                margin: 0;
+              }
+              body > *:not(.print-portal-container) {
+                display: none !important;
+              }
+              body {
+                background: white !important;
+                margin: 0 !important;
+                padding: 0 !important;
+              }
+              .print-portal-container {
+                display: block !important;
+                position: static !important;
+                width: 100% !important;
+                background: white !important;
+              }
+              .label-row {
+                display: flex !important;
+                flex-direction: row !important;
+                justify-content: center !important;
+                align-items: center !important;
+                box-sizing: border-box !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                overflow: hidden !important;
+                background-color: white !important;
+              }
+              
+              /* Layout: Double 73x22mm */
+              .layout-double .label-row {
+                width: 73mm !important;
+                height: 22mm !important;
+                gap: 2mm !important;
+                padding: 1mm !important;
+              }
+              .layout-double .single-label {
+                width: 35mm !important;
+                height: 20mm !important;
+              }
+
+              /* Layout: Single 35x22mm */
+              .layout-single .label-row {
+                width: 35mm !important;
+                height: 22mm !important;
+                padding: 1mm !important;
+              }
+              .layout-single .single-label {
+                width: 33mm !important;
+                height: 20mm !important;
+              }
+
+              /* Layout: A7 74x105mm */
+              .layout-a7 .label-row {
+                width: 74mm !important;
+                height: 105mm !important;
+                padding: 4mm !important;
+              }
+              .layout-a7 .single-label {
+                width: 100% !important;
+                height: 100% !important;
+              }
+
+              .single-label {
+                box-sizing: border-box !important;
+                display: flex !important;
+                overflow: hidden !important;
+                background-color: white !important;
+              }
+              
+              /* A7 specifics */
+              .layout-a7 .single-label {
+                flex-direction: column !important;
+                align-items: center !important;
+                border: 1px solid #ccc !important;
+                border-radius: 4mm !important;
+                padding: 4mm !important;
+              }
+              
+              /* Double/Single specifics */
+              .layout-double .single-label, .layout-single .single-label {
+                flex-direction: row !important;
+                align-items: center !important;
+                border: 0.5px solid #ccc !important;
+                border-radius: 2mm !important;
+                padding: 1mm !important;
+              }
             }
-            body * {
-              visibility: hidden !important;
-            }
-            .printable-cont-qr-labels-container, .printable-cont-qr-labels-container * {
-              visibility: visible !important;
-            }
-            .printable-cont-qr-labels-container {
-              position: absolute !important;
-              left: 0 !important;
-              top: 0 !important;
-              width: 74mm !important;
-              margin: 0 !important;
-              padding: 0 !important;
-            }
-            .cont-label-row {
-              width: 74mm !important;
-              height: 105mm !important;
-              display: flex !important;
-              flex-direction: column !important;
-              justify-content: center !important;
-              align-items: center !important;
-              box-sizing: border-box !important;
-              page-break-after: always !important;
-              break-after: page !important;
-              overflow: hidden !important;
-              padding: 4mm !important;
-            }
-            .single-cont-label {
-              width: 100% !important;
-              height: 100% !important;
-              padding: 4mm !important;
-              box-sizing: border-box !important;
-              display: flex !important;
-              flex-direction: column !important;
-              align-items: center !important;
-              justify-content: space-between !important;
-              border: 1px solid #ccc !important;
-              border-radius: 4mm !important;
-              overflow: hidden !important;
-              background-color: white !important;
-            }
-          }
-        `}</style>
-        {labelRows.map((row, rowIndex) => (
-          <div key={rowIndex} className="cont-label-row">
-            {row.map((item, colIndex) => (
-              <div key={colIndex} className="single-cont-label">
-                
-                <div style={{ textAlign: 'center', width: '100%' }}>
-                    <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#555', marginBottom: '4mm', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
-                        <span>CONT: {item.contNumber || contNumber}</span>
-                        <span>{item.contDate || contDate}</span>
-                    </div>
+          `}</style>
+          
+          <div className={`layout-${labelLayout}`}>
+            {labelRows.map((row, rowIndex) => (
+              <div key={rowIndex} className="label-row">
+                {row.map((item, colIndex) => (
+                  <div key={colIndex} className="single-label">
                     
-                    <div style={{ fontSize: '20px', fontWeight: '900', color: '#000', marginBottom: '4mm', lineHeight: '1.3' }}>
-                        {item.name}
-                    </div>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold', fontFamily: 'monospace', color: '#065f46', padding: '3mm', background: '#f1f5f9', borderRadius: '2mm', display: 'inline-block' }}>
-                        {item.code}
-                    </div>
-                </div>
+                    {labelLayout === 'a7' ? (
+                        <>
+                            <div style={{ textAlign: 'center', width: '100%' }}>
+                                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#555', marginBottom: '4mm', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
+                                    <span>CONT: {item.contNumber || contNumber}</span>
+                                    <span>{item.contDate || contDate}</span>
+                                </div>
+                                <div style={{ fontSize: '24px', fontWeight: '900', color: '#000', marginBottom: '6mm', lineHeight: '1.3', wordBreak: 'break-word', overflow: 'hidden' }}>
+                                    {item.name}
+                                </div>
+                                <div style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'monospace', color: '#065f46', padding: '3mm', background: '#f1f5f9', borderRadius: '2mm', display: 'inline-block' }}>
+                                    {item.code}
+                                </div>
+                            </div>
+                            <div style={{ width: '56mm', height: '56mm', margin: '4mm 0' }}>
+                              <QRCodeSVG
+                                value={item.qrPayload}
+                                size={300}
+                                level="Q"
+                                marginSize={1}
+                                style={{ width: '100%', height: '100%' }}
+                              />
+                            </div>
+                            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2mm', marginTop: 'auto' }}>
+                                <div style={{ fontSize: '18px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #ccc', paddingTop: '3mm' }}>
+                                    <span>{item.unit}</span>
+                                    <span style={{ fontFamily: 'monospace', fontWeight: '900', background: '#166534', color: 'white', padding: '1.5mm 4mm', borderRadius: '2mm' }}>SL: {item.quantity.toLocaleString('vi-VN')}</span>
+                                </div>
+                                <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#64748b', textAlign: 'right' }}>
+                                    Ngày in: {new Date().toLocaleDateString('vi-VN')}
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            {/* Double or Single layout */}
+                            <div style={{ width: '16mm', height: '16mm', flexShrink: 0, marginRight: '1mm' }}>
+                              <QRCodeSVG
+                                value={item.qrPayload}
+                                size={128}
+                                level="M"
+                                marginSize={0}
+                                style={{ width: '100%', height: '100%' }}
+                              />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', fontFamily: 'sans-serif', lineHeight: '1.1' }}>
+                              <div style={{ fontSize: '7px', fontWeight: 'bold', color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>C: {item.contNumber || contNumber}</span>
+                                <span>{item.contDate || contDate}</span>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: '9px', fontWeight: '900', color: '#000', maxHeight: '11mm', overflow: 'hidden', wordBreak: 'break-word', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                                  {item.name}
+                                </div>
+                                <div style={{ fontSize: '8px', fontWeight: 'bold', fontFamily: 'monospace', color: '#065f46', marginTop: '0.5mm' }}>
+                                  {item.code}
+                                </div>
+                              </div>
+                              <div style={{ fontSize: '8px', fontWeight: 'bold', borderTop: '0.5px solid #ccc', paddingTop: '0.5mm', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>{item.unit}</span>
+                                <span style={{ fontFamily: 'monospace', fontWeight: 'bold', backgroundColor: '#f59e0b', color: '#000', padding: '0 2px', borderRadius: '2px' }}>SL: {item.quantity.toLocaleString('vi-VN')}</span>
+                              </div>
+                            </div>
+                        </>
+                    )}
 
-                <div style={{ width: '45mm', height: '45mm', margin: '4mm 0' }}>
-                  <QRCodeSVG
-                    value={item.qrPayload}
-                    size={200}
-                    level="Q"
-                    marginSize={1}
-                    style={{ width: '100%', height: '100%' }}
-                  />
-                </div>
-
-                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2mm' }}>
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #ccc', paddingTop: '3mm' }}>
-                        <span>{item.unit}</span>
-                        <span style={{ fontFamily: 'monospace', fontWeight: '900', background: '#166534', color: 'white', padding: '1.5mm 4mm', borderRadius: '2mm' }}>SL: {item.quantity.toLocaleString('vi-VN')}</span>
-                    </div>
-                    <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#64748b', textAlign: 'right', marginTop: 'auto' }}>
-                        Ngày in: {new Date().toLocaleDateString('vi-VN')} {new Date().toLocaleTimeString('vi-VN')}
-                    </div>
-                </div>
-
+                  </div>
+                ))}
+                
+                {labelLayout === 'double' && row.length === 1 && (
+                  <div className="single-label" style={{ visibility: 'hidden' }} />
+                )}
               </div>
             ))}
           </div>
-        ))}
-      </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

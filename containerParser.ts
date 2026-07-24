@@ -333,7 +333,7 @@ export function parseContainerExcel(
     const isNewPart = !matchedPart;
 
     if (isNewPart) {
-      newPartsCount++;
+      continue; // Bỏ qua các linh kiện không có trong danh sách
     } else {
       matchedPartsCount++;
     }

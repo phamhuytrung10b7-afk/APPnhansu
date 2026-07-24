@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Part, AppSettings } from './types';
 import { QRCodeSVG } from 'qrcode.react';
 import { Printer, X, Search, CheckSquare, Square, Filter, RefreshCw, Settings, Tag, Eye } from 'lucide-react';
@@ -29,7 +30,7 @@ export const BatchPrintQrModal: React.FC<BatchPrintQrModalProps> = ({
   });
 
   // Display options
-  const [labelLayout, setLabelLayout] = useState<'a7'>('a7'); // 'double' = 73x22mm (2 tem / hàng), 'single' = 35x22mm
+  const [labelLayout, setLabelLayout] = useState<'double' | 'single' | 'a7'>('double'); // 'double' = 73x22mm (2 tem / hàng), 'single' = 35x22mm
   const [showLocation, setShowLocation] = useState(true);
   const [showWarehouseName, setShowWarehouseName] = useState(false);
   const [activeTab, setActiveTab] = useState<'select' | 'preview'>('select');
@@ -172,7 +173,8 @@ export const BatchPrintQrModal: React.FC<BatchPrintQrModalProps> = ({
                 onChange={(e) => setLabelLayout(e.target.value as 'double' | 'single')}
                 className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg font-bold text-blue-700 focus:outline-hidden cursor-pointer"
               >
-                
+                <option value="double">Tem Đôi (73x22mm - 2 Tem/Hàng)</option>
+                <option value="single">Tem Đơn (35x22mm - 1 Tem/Hàng)</option>
                 <option value="a7">Khổ A7 (74x105mm - 1 Tem)</option>
               </select>
             </div>
@@ -350,61 +352,84 @@ export const BatchPrintQrModal: React.FC<BatchPrintQrModalProps> = ({
                   {labelRows.map((row, rowIndex) => (
                     <div
                       key={rowIndex}
-                      className="bg-white border-2 border-dashed border-slate-400 p-1.5 rounded-lg shadow-md flex items-center space-x-1.5 bg-amber-50/20"
+                      className={`bg-white border-2 border-dashed border-slate-400 p-1.5 rounded-lg shadow-md flex bg-amber-50/20 mx-auto ${
+                        labelLayout === 'a7' ? 'flex-col items-center justify-center' : 'flex-row items-center space-x-1.5'
+                      }`}
                       style={{
-                        width: labelLayout === 'double' ? '420px' : '210px',
-                        height: '400px', // Scaled preview height representing 22mm
+                        width: labelLayout === 'double' ? '420px' : (labelLayout === 'a7' ? '280px' : '210px'),
+                        height: labelLayout === 'a7' ? '400px' : '125px', 
                       }}
                     >
                       {row.map((item, colIndex) => (
                         <div
                           key={colIndex}
-                          className="flex-1 h-full bg-white border border-slate-300 rounded-md p-2 flex items-center justify-between overflow-hidden shadow-2xs relative"
+                          className={`flex-1 w-full h-full bg-white border border-slate-300 rounded-md overflow-hidden shadow-2xs relative flex ${
+                             labelLayout === 'a7' ? 'flex-col items-center p-6' : 'flex-row items-center p-2'
+                          }`}
                         >
-                          {/* Left: QR Code */}
-                          <div className="shrink-0 pr-2">
-                            <QRCodeSVG
-                              value={item.qrCode || item.code}
-                              size={75}
-                              level="M"
-                              marginSize={0}
-                            />
-                          </div>
-
-                          {/* Right: Part Details */}
-                          <div className="flex-1 min-w-0 h-full flex flex-col justify-between py-0.5">
-                            {showWarehouseName && (
-                              <p className="text-[9px] font-bold text-slate-500 truncate uppercase tracking-tighter">
-                                {settings.warehouseName || 'KHO LINH KIỆN'}
-                              </p>
-                            )}
-
-                            <div>
-                              <p className="text-[11px] font-black text-slate-900 leading-tight line-clamp-2">
-                                {item.name}
-                              </p>
-                              <p className="text-[11px] font-mono font-bold text-blue-700 mt-0.5">
-                                {item.code}
-                              </p>
-                            </div>
-
-                            {showLocation && (
-                              <div className="flex items-center justify-between text-[10px] font-bold border-t border-slate-200 pt-0.5">
-                                <span className="text-slate-500">KỆ:</span>
-                                <span className="bg-slate-900 text-white px-1 rounded-xs font-mono">
-                                  {item.location}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-
-                          <span className="absolute top-0.5 right-1 text-[8px] font-mono text-slate-300">
-                            35x22mm
-                          </span>
+                          {labelLayout === 'a7' ? (
+                             <>
+                                <div className="w-full text-center">
+                                    {showWarehouseName && (
+                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 line-clamp-1">
+                                            {settings.warehouseName || 'KHO LINH KIỆN'}
+                                        </p>
+                                    )}
+                                    <p className="text-xl font-black text-slate-900 leading-tight mb-3 line-clamp-4">
+                                        {item.name}
+                                    </p>
+                                    <p className="text-base font-mono font-bold text-blue-800 bg-blue-50 py-1.5 px-3 rounded-md inline-block">
+                                        {item.code}
+                                    </p>
+                                </div>
+                                <div className="shrink-0 my-4">
+                                    <QRCodeSVG value={item.qrCode || item.code} size={180} level="Q" marginSize={1} />
+                                </div>
+                                <div className="w-full flex flex-col gap-3 mt-auto">
+                                    {showLocation && (
+                                        <div className="flex items-center justify-between text-sm font-bold border-t-2 border-slate-200 pt-3">
+                                            <span className="text-slate-500">KỆ:</span>
+                                            <span className="bg-slate-900 text-white px-3 py-1 rounded-md font-mono">{item.location || 'N/A'}</span>
+                                        </div>
+                                    )}
+                                    <p className="text-[11px] text-slate-400 text-right mt-1 font-medium">
+                                        Ngày in: {new Date().toLocaleDateString('vi-VN')}
+                                    </p>
+                                </div>
+                                <span className="absolute top-2 right-2 text-[9px] font-mono text-slate-300">74x105mm</span>
+                             </>
+                          ) : (
+                             <>
+                                <div className="shrink-0 pr-2">
+                                  <QRCodeSVG value={item.qrCode || item.code} size={75} level="M" marginSize={0} />
+                                </div>
+                                <div className="flex-1 min-w-0 h-full flex flex-col justify-between py-0.5">
+                                  {showWarehouseName && (
+                                    <p className="text-[9px] font-bold text-slate-500 truncate uppercase tracking-tighter">
+                                      {settings.warehouseName || 'KHO LINH KIỆN'}
+                                    </p>
+                                  )}
+                                  <div>
+                                    <p className="text-[11px] font-black text-slate-900 leading-tight line-clamp-3">
+                                      {item.name}
+                                    </p>
+                                    <p className="text-[11px] font-mono font-bold text-blue-700 mt-0.5">
+                                      {item.code}
+                                    </p>
+                                  </div>
+                                  {showLocation && (
+                                    <div className="flex items-center justify-between text-[10px] font-bold border-t border-slate-200 pt-0.5">
+                                      <span className="text-slate-500">KỆ:</span>
+                                      <span className="bg-slate-900 text-white px-1 rounded-xs font-mono">{item.location}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <span className="absolute top-0.5 right-1 text-[8px] font-mono text-slate-300">35x22mm</span>
+                             </>
+                          )}
                         </div>
                       ))}
-
-                      {/* If double layout but row has only 1 item */}
+                      
                       {labelLayout === 'double' && row.length === 1 && (
                         <div className="flex-1 h-full bg-slate-100 border border-dashed border-slate-300 rounded-md p-2 flex items-center justify-center text-[10px] text-slate-400 italic">
                           (Tem trống)
@@ -417,126 +442,205 @@ export const BatchPrintQrModal: React.FC<BatchPrintQrModalProps> = ({
             </div>
           )}
         </div>
-
         {/* Footer */}
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0 text-xs text-slate-500">
           <span>* Hỗ trợ cài đặt lề máy in nhiệt: Lề (Margins) = None (Không có), Tỉ lệ (Scale) = 100%</span>
           <div className="flex items-center space-x-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold cursor-pointer transition-colors"
-            >
-              Đóng
-            </button>
-            <button
-              onClick={handlePrint}
-              disabled={totalSelectedLabels === 0}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-xl font-bold shadow-md cursor-pointer transition-colors flex items-center space-x-1.5"
-            >
+            <button onClick={onClose} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold cursor-pointer transition-colors">Đóng</button>
+            <button onClick={handlePrint} disabled={totalSelectedLabels === 0} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-xl font-bold shadow-md cursor-pointer transition-colors flex items-center space-x-1.5">
               <Printer className="w-4 h-4" />
               <span>In Ngay ({totalSelectedLabels} tem)</span>
             </button>
           </div>
         </div>
       </div>
+{/* PRINT-ONLY PORTAL */}
+      {createPortal(
+        <div className="hidden print:block print-portal-container">
+          <style>{`
+            @media print {
+              @page {
+                margin: 0;
+                /* If A7: size: 74mm 105mm; */
+                /* If 35x22: size: 73mm 22mm; (for double) */
+              }
+              body > *:not(.print-portal-container) {
+                display: none !important;
+              }
+              body {
+                background: white !important;
+                margin: 0 !important;
+                padding: 0 !important;
+              }
+              .print-portal-container {
+                display: block !important;
+                position: static !important;
+                width: 100% !important;
+                background: white !important;
+              }
+              .label-row {
+                display: flex !important;
+                flex-direction: row !important;
+                justify-content: center !important;
+                align-items: center !important;
+                box-sizing: border-box !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                overflow: hidden !important;
+                background-color: white !important;
+              }
+              
+              /* Layout: Double 73x22mm */
+              .layout-double .label-row {
+                width: 73mm !important;
+                height: 22mm !important;
+                gap: 2mm !important;
+                padding: 1mm !important;
+              }
+              .layout-double .single-label {
+                width: 35mm !important;
+                height: 20mm !important;
+              }
 
-      {/* PRINT-ONLY CSS CONTAINER - Hidden on screen, shown when window.print() is executed */}
-      <div className="hidden print:block printable-qr-labels-container">
-        <style>{`
-          @media print {
-            @page {
-              size: 74mm 105mm;
-              margin: 0;
+              /* Layout: Single 35x22mm */
+              .layout-single .label-row {
+                width: 35mm !important;
+                height: 22mm !important;
+                padding: 1mm !important;
+              }
+              .layout-single .single-label {
+                width: 33mm !important;
+                height: 20mm !important;
+              }
+
+              /* Layout: A7 74x105mm */
+              .layout-a7 .label-row {
+                width: 74mm !important;
+                height: 105mm !important;
+                padding: 4mm !important;
+              }
+              .layout-a7 .single-label {
+                width: 100% !important;
+                height: 100% !important;
+              }
+
+              .single-label {
+                box-sizing: border-box !important;
+                display: flex !important;
+                overflow: hidden !important;
+                background-color: white !important;
+              }
+              
+              /* A7 specifics */
+              .layout-a7 .single-label {
+                flex-direction: column !important;
+                align-items: center !important;
+                border: 1px solid #ccc !important;
+                border-radius: 4mm !important;
+                padding: 4mm !important;
+              }
+              
+              /* Double/Single specifics */
+              .layout-double .single-label, .layout-single .single-label {
+                flex-direction: row !important;
+                align-items: center !important;
+                border: 0.5px solid #ccc !important;
+                border-radius: 2mm !important;
+                padding: 1mm !important;
+              }
             }
-            body * {
-              visibility: hidden !important;
-            }
-            .printable-qr-labels-container, .printable-qr-labels-container * {
-              visibility: visible !important;
-            }
-            .printable-qr-labels-container {
-              position: absolute !important;
-              left: 0 !important;
-              top: 0 !important;
-              width: 74mm !important;
-              margin: 0 !important;
-              padding: 0 !important;
-            }
-            .label-row {
-              width: 74mm !important;
-              height: 105mm !important;
-              display: flex !important;
-              flex-direction: column !important;
-              justify-content: center !important;
-              align-items: center !important;
-              box-sizing: border-box !important;
-              page-break-after: always !important;
-              break-after: page !important;
-              overflow: hidden !important;
-              padding: 4mm !important;
-            }
-            .single-label {
-              width: 100% !important;
-              height: 100% !important;
-              padding: 4mm !important;
-              box-sizing: border-box !important;
-              display: flex !important;
-              flex-direction: column !important;
-              align-items: center !important;
-              justify-content: space-between !important;
-              border: 1px solid #ccc !important;
-              border-radius: 4mm !important;
-              overflow: hidden !important;
-              background-color: white !important;
-            }
-          }
-        `}</style>
-        {labelRows.map((row, rowIndex) => (
-          <div key={rowIndex} className="label-row">
-            {row.map((item, colIndex) => (
-              <div key={colIndex} className="single-label">
+          `}</style>
+          
+          <div className={`layout-${labelLayout}`}>
+            {labelRows.map((row, rowIndex) => (
+              <div key={rowIndex} className="label-row">
+                {row.map((item, colIndex) => (
+                  <div key={colIndex} className="single-label">
+                    
+                    {labelLayout === 'a7' ? (
+                        <>
+                            <div style={{ textAlign: 'center', width: '100%' }}>
+                                {showWarehouseName && (
+                                    <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#555', marginBottom: '4mm', textTransform: 'uppercase' }}>
+                                        {settings.warehouseName || 'KHO LINH KIỆN'}
+                                    </div>
+                                )}
+                                <div style={{ fontSize: '24px', fontWeight: '900', color: '#000', marginBottom: '6mm', lineHeight: '1.3', wordBreak: 'break-word', overflow: 'hidden' }}>
+                                    {item.name}
+                                </div>
+                                <div style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'monospace', color: '#1e40af', padding: '3mm', background: '#f1f5f9', borderRadius: '2mm', display: 'inline-block' }}>
+                                    {item.code}
+                                </div>
+                            </div>
+                            <div style={{ width: '56mm', height: '56mm', margin: '4mm 0' }}>
+                              <QRCodeSVG
+                                value={item.qrCode || item.code}
+                                size={300}
+                                level="Q"
+                                marginSize={1}
+                                style={{ width: '100%', height: '100%' }}
+                              />
+                            </div>
+                            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2mm', marginTop: 'auto' }}>
+                                {showLocation && (
+                                    <div style={{ fontSize: '16px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #ccc', paddingTop: '3mm' }}>
+                                        <span>VỊ TRÍ (KỆ):</span>
+                                        <span style={{ fontFamily: 'monospace', fontWeight: '900', background: '#0f172a', color: 'white', padding: '1.5mm 4mm', borderRadius: '2mm' }}>{item.location || 'N/A'}</span>
+                                    </div>
+                                )}
+                                <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#64748b', textAlign: 'right' }}>
+                                    Ngày in: {new Date().toLocaleDateString('vi-VN')}
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            {/* Double or Single layout */}
+                            <div style={{ width: '16mm', height: '16mm', flexShrink: 0, marginRight: '1mm' }}>
+                              <QRCodeSVG
+                                value={item.qrCode || item.code}
+                                size={128}
+                                level="M"
+                                marginSize={0}
+                                style={{ width: '100%', height: '100%' }}
+                              />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', fontFamily: 'sans-serif', lineHeight: '1.1' }}>
+                              {showWarehouseName && (
+                                <div style={{ fontSize: '7px', fontWeight: 'bold', color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {settings.warehouseName || 'KHO LINH KIỆN'}
+                                </div>
+                              )}
+                              <div>
+                                <div style={{ fontSize: '9px', fontWeight: '900', color: '#000', maxHeight: '11mm', overflow: 'hidden', wordBreak: 'break-word', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                                  {item.name}
+                                </div>
+                                <div style={{ fontSize: '8px', fontWeight: 'bold', fontFamily: 'monospace', color: '#1e40af', marginTop: '0.5mm' }}>
+                                  {item.code}
+                                </div>
+                              </div>
+                              {showLocation && (
+                                <div style={{ fontSize: '8px', fontWeight: 'bold', borderTop: '0.5px solid #ccc', paddingTop: '0.5mm', display: 'flex', justifyContent: 'space-between' }}>
+                                  <span>KỆ:</span>
+                                  <span style={{ fontFamily: 'monospace', fontWeight: 'bold', backgroundColor: '#0f172a', color: 'white', padding: '0 2px', borderRadius: '2px' }}>{item.location}</span>
+                                </div>
+                              )}
+                            </div>
+                        </>
+                    )}
+
+                  </div>
+                ))}
                 
-                <div style={{ textAlign: 'center', width: '100%' }}>
-                    {showWarehouseName && (
-                        <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#555', marginBottom: '4mm', textTransform: 'uppercase' }}>
-                            {settings.warehouseName || 'KHO LINH KIỆN'}
-                        </div>
-                    )}
-                    <div style={{ fontSize: '20px', fontWeight: '900', color: '#000', marginBottom: '4mm', lineHeight: '1.3' }}>
-                        {item.name}
-                    </div>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold', fontFamily: 'monospace', color: '#1e40af', padding: '3mm', background: '#f1f5f9', borderRadius: '2mm', display: 'inline-block' }}>
-                        {item.code}
-                    </div>
-                </div>
-
-                <div style={{ width: '45mm', height: '45mm', margin: '4mm 0' }}>
-                  <QRCodeSVG
-                    value={item.qrCode || item.code}
-                    size={200}
-                    level="Q"
-                    marginSize={1}
-                    style={{ width: '100%', height: '100%' }}
-                  />
-                </div>
-
-                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2mm' }}>
-                    {showLocation && (
-                        <div style={{ fontSize: '16px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #ccc', paddingTop: '3mm' }}>
-                            <span>VỊ TRÍ (KỆ):</span>
-                            <span style={{ fontFamily: 'monospace', fontWeight: '900', background: '#0f172a', color: 'white', padding: '1.5mm 4mm', borderRadius: '2mm' }}>{item.location || 'N/A'}</span>
-                        </div>
-                    )}
-                    <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#64748b', textAlign: 'right', marginTop: 'auto' }}>
-                        Ngày in: {new Date().toLocaleDateString('vi-VN')} {new Date().toLocaleTimeString('vi-VN')}
-                    </div>
-                </div>
-
+                {labelLayout === 'double' && row.length === 1 && (
+                  <div className="single-label" style={{ visibility: 'hidden' }} />
+                )}
               </div>
             ))}
           </div>
-        ))}
-      </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

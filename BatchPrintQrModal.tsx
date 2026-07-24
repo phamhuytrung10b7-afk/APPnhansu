@@ -29,7 +29,7 @@ export const BatchPrintQrModal: React.FC<BatchPrintQrModalProps> = ({
   });
 
   // Display options
-  const [labelLayout, setLabelLayout] = useState<'double' | 'single'>('double'); // 'double' = 73x22mm (2 tem / hàng), 'single' = 35x22mm
+  const [labelLayout, setLabelLayout] = useState<'a7'>('a7'); // 'double' = 73x22mm (2 tem / hàng), 'single' = 35x22mm
   const [showLocation, setShowLocation] = useState(true);
   const [showWarehouseName, setShowWarehouseName] = useState(false);
   const [activeTab, setActiveTab] = useState<'select' | 'preview'>('select');
@@ -81,14 +81,10 @@ export const BatchPrintQrModal: React.FC<BatchPrintQrModalProps> = ({
 
   // Group labelItems into rows for 2-up (tem đôi 73x22mm)
   const labelRows: Part[][] = [];
-  if (labelLayout === 'double') {
-    for (let i = 0; i < labelItems.length; i += 2) {
-      labelRows.push(labelItems.slice(i, i + 2));
-    }
-  } else {
+  
     for (let i = 0; i < labelItems.length; i++) {
       labelRows.push([labelItems[i]]);
-    }
+    
   }
 
   const handlePrint = () => {
@@ -112,7 +108,7 @@ export const BatchPrintQrModal: React.FC<BatchPrintQrModalProps> = ({
               <h3 className="font-extrabold text-base sm:text-lg flex items-center space-x-2">
                 <span>IN HÀNG LOẠT TEM QR CODE DÁN KỆ</span>
                 <span className="px-2 py-0.5 text-[11px] bg-amber-400 text-slate-950 font-black rounded-full">
-                  Kích thước: {labelLayout === 'double' ? 'Tem Đôi 73x22mm' : 'Tem Đơn 35x22mm'}
+                  Kích thước: {'Khổ A7 74x105mm'}
                 </span>
               </h3>
               <p className="text-xs text-blue-200 mt-0.5">
@@ -163,7 +159,7 @@ export const BatchPrintQrModal: React.FC<BatchPrintQrModalProps> = ({
               }`}
             >
               <Eye className="w-4 h-4" />
-              <span>Xem Trước Mẫu In (73x22mm)</span>
+              <span>Xem Trước Mẫu In (A7 74x105mm)</span>
             </button>
           </div>
 
@@ -176,8 +172,8 @@ export const BatchPrintQrModal: React.FC<BatchPrintQrModalProps> = ({
                 onChange={(e) => setLabelLayout(e.target.value as 'double' | 'single')}
                 className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg font-bold text-blue-700 focus:outline-hidden cursor-pointer"
               >
-                <option value="double">Tem Đôi (73x22mm - 2 Tem / Hàng)</option>
-                <option value="single">Tem Đơn (35x22mm - 1 Tem / Hàng)</option>
+                
+                <option value="a7">Khổ A7 (74x105mm - 1 Tem)</option>
               </select>
             </div>
 
@@ -330,10 +326,10 @@ export const BatchPrintQrModal: React.FC<BatchPrintQrModalProps> = ({
               <div className="bg-white p-4 rounded-2xl border border-slate-300 shadow-xs flex items-center justify-between text-xs">
                 <div>
                   <p className="font-bold text-slate-800">
-                    Mô Phỏng Trực Quan Giấy In Tem Nhiệt ({labelLayout === 'double' ? 'Tem Đôi 73x22mm' : 'Tem Đơn 35x22mm'})
+                    Mô Phỏng Trực Quan Giấy In Tem Nhiệt ({'Khổ A7 74x105mm'})
                   </p>
                   <p className="text-slate-500">
-                    Mỗi cuộn tem gồm {labelLayout === 'double' ? '2 tem nhỏ (35x22mm) trên 1 hàng ngang' : '1 tem (35x22mm)'}. Đúng tỉ lệ thực tế khi dán kệ.
+                    Mỗi cuộn tem gồm {'1 tem A7 (74x105mm)'}. Đúng tỉ lệ thực tế khi dán kệ.
                   </p>
                 </div>
                 <button
@@ -357,7 +353,7 @@ export const BatchPrintQrModal: React.FC<BatchPrintQrModalProps> = ({
                       className="bg-white border-2 border-dashed border-slate-400 p-1.5 rounded-lg shadow-md flex items-center space-x-1.5 bg-amber-50/20"
                       style={{
                         width: labelLayout === 'double' ? '420px' : '210px',
-                        height: '130px', // Scaled preview height representing 22mm
+                        height: '400px', // Scaled preview height representing 22mm
                       }}
                     >
                       {row.map((item, colIndex) => (
@@ -449,7 +445,7 @@ export const BatchPrintQrModal: React.FC<BatchPrintQrModalProps> = ({
         <style>{`
           @media print {
             @page {
-              size: ${labelLayout === 'double' ? '73mm 22mm' : '35mm 22mm'};
+              size: 74mm 105mm;
               margin: 0;
             }
             body * {
@@ -462,128 +458,82 @@ export const BatchPrintQrModal: React.FC<BatchPrintQrModalProps> = ({
               position: absolute !important;
               left: 0 !important;
               top: 0 !important;
-              width: ${labelLayout === 'double' ? '73mm' : '35mm'} !important;
+              width: 74mm !important;
               margin: 0 !important;
               padding: 0 !important;
             }
             .label-row {
-              width: ${labelLayout === 'double' ? '73mm' : '35mm'} !important;
-              height: 22mm !important;
+              width: 74mm !important;
+              height: 105mm !important;
               display: flex !important;
-              flex-direction: row !important;
-              justify-content: space-between !important;
+              flex-direction: column !important;
+              justify-content: center !important;
               align-items: center !important;
               box-sizing: border-box !important;
               page-break-after: always !important;
               break-after: page !important;
               overflow: hidden !important;
+              padding: 4mm !important;
             }
             .single-label {
-              width: 35mm !important;
-              height: 22mm !important;
-              padding: 1.2mm !important;
+              width: 100% !important;
+              height: 100% !important;
+              padding: 4mm !important;
               box-sizing: border-box !important;
               display: flex !important;
-              flex-direction: row !important;
+              flex-direction: column !important;
               align-items: center !important;
               justify-content: space-between !important;
+              border: 1px solid #ccc !important;
+              border-radius: 4mm !important;
               overflow: hidden !important;
+              background-color: white !important;
             }
           }
         `}</style>
-
         {labelRows.map((row, rowIndex) => (
           <div key={rowIndex} className="label-row">
             {row.map((item, colIndex) => (
               <div key={colIndex} className="single-label">
-                {/* QR code on left */}
-                <div style={{ width: '17mm', height: '17mm', flexShrink: 0, marginRight: '1mm' }}>
+                
+                <div style={{ textAlign: 'center', width: '100%' }}>
+                    {showWarehouseName && (
+                        <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#555', marginBottom: '4mm', textTransform: 'uppercase' }}>
+                            {settings.warehouseName || 'KHO LINH KIỆN'}
+                        </div>
+                    )}
+                    <div style={{ fontSize: '20px', fontWeight: '900', color: '#000', marginBottom: '4mm', lineHeight: '1.3' }}>
+                        {item.name}
+                    </div>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', fontFamily: 'monospace', color: '#1e40af', padding: '3mm', background: '#f1f5f9', borderRadius: '2mm', display: 'inline-block' }}>
+                        {item.code}
+                    </div>
+                </div>
+
+                <div style={{ width: '45mm', height: '45mm', margin: '4mm 0' }}>
                   <QRCodeSVG
                     value={item.qrCode || item.code}
-                    size={64}
-                    level="M"
-                    marginSize={0}
+                    size={200}
+                    level="Q"
+                    marginSize={1}
                     style={{ width: '100%', height: '100%' }}
                   />
                 </div>
 
-                {/* Right Text details */}
-                <div
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    fontFamily: 'sans-serif',
-                    lineHeight: '1.1',
-                  }}
-                >
-                  {showWarehouseName && (
-                    <div
-                      style={{
-                        fontSize: '6px',
-                        fontWeight: 'bold',
-                        color: '#555',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {settings.warehouseName || 'KHO LINH KIỆN'}
+                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2mm' }}>
+                    {showLocation && (
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #ccc', paddingTop: '3mm' }}>
+                            <span>VỊ TRÍ (KỆ):</span>
+                            <span style={{ fontFamily: 'monospace', fontWeight: '900', background: '#0f172a', color: 'white', padding: '1.5mm 4mm', borderRadius: '2mm' }}>{item.location || 'N/A'}</span>
+                        </div>
+                    )}
+                    <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#64748b', textAlign: 'right', marginTop: 'auto' }}>
+                        Ngày in: {new Date().toLocaleDateString('vi-VN')} {new Date().toLocaleTimeString('vi-VN')}
                     </div>
-                  )}
-
-                  <div>
-                    <div
-                      style={{
-                        fontSize: '8px',
-                        fontWeight: 'bold',
-                        color: '#000',
-                        maxHeight: '11mm',
-                        overflow: 'hidden',
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {item.name}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '7.5px',
-                        fontWeight: 'bold',
-                        fontFamily: 'monospace',
-                        color: '#1e40af',
-                        marginTop: '0.5mm',
-                      }}
-                    >
-                      {item.code}
-                    </div>
-                  </div>
-
-                  {showLocation && (
-                    <div
-                      style={{
-                        fontSize: '7px',
-                        fontWeight: 'bold',
-                        borderTop: '0.5px solid #ccc',
-                        paddingTop: '0.5mm',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                      }}
-                    >
-                      <span>KỆ:</span>
-                      <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{item.location}</span>
-                    </div>
-                  )}
                 </div>
+
               </div>
             ))}
-
-            {/* Empty label padding if odd number of labels in double row */}
-            {labelLayout === 'double' && row.length === 1 && (
-              <div className="single-label" style={{ visibility: 'hidden' }} />
-            )}
           </div>
         ))}
       </div>

@@ -51,7 +51,7 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
   const [isAddingNewParts, setIsAddingNewParts] = useState(false);
   const [addedSuccessMsg, setAddedSuccessMsg] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'import' | 'history' | 'preview'>('import');
-  const [labelLayout, setLabelLayout] = useState<'double' | 'single'>('double'); // 'double' = 73x22mm (2 tem / hàng), 'single' = 35x22mm
+  const [labelLayout, setLabelLayout] = useState<'a7'>('a7'); // 'double' = 73x22mm (2 tem / hàng), 'single' = 35x22mm
   const [searchTerm, setSearchTerm] = useState('');
   const [savedBatches, setSavedBatches] = useState<ContainerBatch[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -292,14 +292,10 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
 
   // Group labels into rows for 2-up (tem đôi 73x22mm)
   const labelRows: ContainerImportItem[][] = [];
-  if (labelLayout === 'double') {
-    for (let i = 0; i < printLabelItems.length; i += 2) {
-      labelRows.push(printLabelItems.slice(i, i + 2));
-    }
-  } else {
+  
     for (let i = 0; i < printLabelItems.length; i++) {
       labelRows.push([printLabelItems[i]]);
-    }
+    
   }
 
   return (
@@ -393,8 +389,8 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
                 onChange={(e) => setLabelLayout(e.target.value as 'double' | 'single')}
                 className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg font-bold text-emerald-800 focus:outline-hidden cursor-pointer"
               >
-                <option value="double">Tem Đôi (73x22mm - 2 Tem / Hàng)</option>
-                <option value="single">Tem Đơn (35x22mm - 1 Tem / Hàng)</option>
+                
+                <option value="a7">Khổ A7 (74x105mm - 1 Tem)</option>
               </select>
             </div>
           </div>
@@ -750,7 +746,7 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
                   <div>
                     <div className="flex items-center space-x-2">
                       <p className="font-black text-slate-900 text-sm">
-                        Mẫu Tem QR Cho Danh Mục Cont {contNumber} ({labelLayout === 'double' ? 'Tem Đôi 73x22mm' : 'Tem Đơn 35x22mm'})
+                        Mẫu Tem QR Cho Danh Mục Cont {contNumber} ({'Khổ A7 74x105mm'})
                       </p>
                     </div>
                     <p className="text-slate-500 mt-0.5">
@@ -817,7 +813,7 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
                       className="bg-white border-2 border-dashed border-slate-400 p-1.5 rounded-lg shadow-md flex items-center space-x-1.5 bg-amber-50/20"
                       style={{
                         width: labelLayout === 'double' ? '420px' : '210px',
-                        height: '130px',
+                        height: '400px',
                       }}
                     >
                       {row.map((item, colIndex) => {
@@ -900,7 +896,7 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
         {/* Footer */}
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0 text-xs text-slate-500">
           <span>
-            * Mẹo in: Chọn máy in tem nhiệt (Godex/Xprinter), Khổ giấy {labelLayout === 'double' ? '73x22mm' : '35x22mm'}, Margins = None.
+            * Mẹo in: Chọn máy in tem nhiệt (Godex/Xprinter), Khổ giấy {'74x105mm'}, Margins = None.
           </span>
           <div className="flex items-center space-x-2">
             <button
@@ -928,7 +924,7 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
         <style>{`
           @media print {
             @page {
-              size: ${labelLayout === 'double' ? '73mm 22mm' : '35mm 22mm'};
+              size: 74mm 105mm;
               margin: 0;
             }
             body * {
@@ -941,131 +937,80 @@ export const ContainerImportPrintModal: React.FC<ContainerImportPrintModalProps>
               position: absolute !important;
               left: 0 !important;
               top: 0 !important;
-              width: ${labelLayout === 'double' ? '73mm' : '35mm'} !important;
+              width: 74mm !important;
               margin: 0 !important;
               padding: 0 !important;
             }
             .cont-label-row {
-              width: ${labelLayout === 'double' ? '73mm' : '35mm'} !important;
-              height: 22mm !important;
+              width: 74mm !important;
+              height: 105mm !important;
               display: flex !important;
-              flex-direction: row !important;
-              justify-content: space-between !important;
+              flex-direction: column !important;
+              justify-content: center !important;
               align-items: center !important;
               box-sizing: border-box !important;
               page-break-after: always !important;
               break-after: page !important;
               overflow: hidden !important;
+              padding: 4mm !important;
             }
             .single-cont-label {
-              width: 35mm !important;
-              height: 22mm !important;
-              padding: 1.2mm !important;
+              width: 100% !important;
+              height: 100% !important;
+              padding: 4mm !important;
               box-sizing: border-box !important;
               display: flex !important;
-              flex-direction: row !important;
+              flex-direction: column !important;
               align-items: center !important;
               justify-content: space-between !important;
+              border: 1px solid #ccc !important;
+              border-radius: 4mm !important;
               overflow: hidden !important;
+              background-color: white !important;
             }
           }
         `}</style>
-
         {labelRows.map((row, rowIndex) => (
           <div key={rowIndex} className="cont-label-row">
             {row.map((item, colIndex) => (
               <div key={colIndex} className="single-cont-label">
-                {/* QR code on left */}
-                <div style={{ width: '17mm', height: '17mm', flexShrink: 0, marginRight: '1mm' }}>
+                
+                <div style={{ textAlign: 'center', width: '100%' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#555', marginBottom: '4mm', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>CONT: {item.contNumber || contNumber}</span>
+                        <span>{item.contDate || contDate}</span>
+                    </div>
+                    
+                    <div style={{ fontSize: '20px', fontWeight: '900', color: '#000', marginBottom: '4mm', lineHeight: '1.3' }}>
+                        {item.name}
+                    </div>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', fontFamily: 'monospace', color: '#065f46', padding: '3mm', background: '#f1f5f9', borderRadius: '2mm', display: 'inline-block' }}>
+                        {item.code}
+                    </div>
+                </div>
+
+                <div style={{ width: '45mm', height: '45mm', margin: '4mm 0' }}>
                   <QRCodeSVG
                     value={item.qrPayload}
-                    size={64}
-                    level="M"
-                    marginSize={0}
+                    size={200}
+                    level="Q"
+                    marginSize={1}
                     style={{ width: '100%', height: '100%' }}
                   />
                 </div>
 
-                {/* Right Text details */}
-                <div
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    fontFamily: 'sans-serif',
-                    lineHeight: '1.1',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: '6.5px',
-                      fontWeight: 'bold',
-                      color: '#222',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span>CONT: {item.contNumber || contNumber}</span>
-                    <span style={{ fontSize: '6px', fontWeight: 'bold', color: '#92400e', marginLeft: '2px' }}>
-                      {item.contDate || contDate}
-                    </span>
-                  </div>
-
-                  <div>
-                    <div
-                      style={{
-                        fontSize: '7.8px',
-                        fontWeight: 'bold',
-                        color: '#000',
-                        maxHeight: '10mm',
-                        overflow: 'hidden',
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {item.name}
+                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2mm' }}>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #ccc', paddingTop: '3mm' }}>
+                        <span>{item.unit}</span>
+                        <span style={{ fontFamily: 'monospace', fontWeight: '900', background: '#166534', color: 'white', padding: '1.5mm 4mm', borderRadius: '2mm' }}>SL: {item.quantity.toLocaleString('vi-VN')}</span>
                     </div>
-                    <div
-                      style={{
-                        fontSize: '7.5px',
-                        fontWeight: 'bold',
-                        fontFamily: 'monospace',
-                        color: '#065f46',
-                        marginTop: '0.4mm',
-                      }}
-                    >
-                      {item.code}
+                    <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#64748b', textAlign: 'right', marginTop: 'auto' }}>
+                        Ngày in: {new Date().toLocaleDateString('vi-VN')} {new Date().toLocaleTimeString('vi-VN')}
                     </div>
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: '7px',
-                      fontWeight: 'bold',
-                      borderTop: '0.5px solid #ccc',
-                      paddingTop: '0.4mm',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                    }}
-                  >
-                    <span>{item.unit}</span>
-                    <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#b45309' }}>
-                      SL: {item.quantity.toLocaleString('vi-VN')}
-                    </span>
-                  </div>
                 </div>
+
               </div>
             ))}
-
-            {labelLayout === 'double' && row.length === 1 && (
-              <div className="single-cont-label" style={{ visibility: 'hidden' }} />
-            )}
           </div>
         ))}
       </div>

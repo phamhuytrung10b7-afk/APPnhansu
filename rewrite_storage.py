@@ -1,4 +1,10 @@
-import { Part, Transaction, AppSettings, ContainerBatch, ContainerQrTag, FifoLot, ModelBOM, ModelBOMItem, StockCheckRecord } from './types';
+import re
+
+with open('storage.ts', 'r') as f:
+    storage = f.read()
+
+# I will write a custom storage.ts with supabase caching
+new_storage = """import { Part, Transaction, AppSettings, ContainerBatch, ContainerQrTag, FifoLot, ModelBOM, ModelBOMItem, StockCheckRecord } from './types';
 import { initialParts, initialTransactions, initialSettings } from './sampleData';
 import { supabase } from './supabaseClient';
 import * as XLSX from 'xlsx';
@@ -56,7 +62,7 @@ export const storageService = {
   },
   saveSettings(settings: AppSettings): void {
     cachedSettings = settings;
-    supabase.from('app_settings').upsert({ id: 'settings-1', ...settings }).then();
+    supabase.from('app_settings').upsert({ id: settings.companyName || '1', ...settings }).then();
   },
   getParts(): Part[] {
     return cachedParts;
@@ -461,7 +467,7 @@ export const storageService = {
         unit = String(row['Unit'] || row['Đơn vị'] || row['ĐVT'] || '').trim();
       }
       if (!itemCode || !itemName || itemCode.toLowerCase() === 'item' || !validPartCodes.has(itemCode.toLowerCase())) return;
-      let quantity = typeof quantityVal === 'number' ? quantityVal : parseFloat(String(quantityVal).replace(/\./g, '').replace(',', '.')) || 0;
+      let quantity = typeof quantityVal === 'number' ? quantityVal : parseFloat(String(quantityVal).replace(/\\./g, '').replace(',', '.')) || 0;
       if (quantity > 0) {
         items.push({ partCode: itemCode, partName: itemName, quantity, unit: unit || 'Cái' });
       }
@@ -527,7 +533,7 @@ export const storageService = {
         // Push all to supabase
         supabase.from('parts').upsert(cachedParts).then();
         supabase.from('transactions').upsert(cachedTransactions).then();
-        supabase.from('app_settings').upsert({ id: 'settings-1', ...cachedSettings }).then();
+        supabase.from('app_settings').upsert({ id: cachedSettings.companyName || '1', ...cachedSettings }).then();
         supabase.from('container_batches').upsert(cachedContainerBatches).then();
         supabase.from('model_boms').upsert(cachedModelBOMs).then();
         supabase.from('stock_checks').upsert(cachedStockChecks).then();
@@ -540,3 +546,7 @@ export const storageService = {
     }
   }
 };
+"""
+
+with open('storage.ts', 'w') as f:
+    f.write(new_storage)

@@ -17,6 +17,7 @@ import { ReportsView } from './ReportsView';
 import { SettingsView } from './SettingsView';
 
 export default function App() {
+  const [isInitializing, setIsInitializing] = useState(true);
   const [currentTab, setCurrentTab] = useState<ViewTab>('dashboard');
   const [parts, setParts] = useState<Part[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -43,7 +44,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    refreshData();
+    const initDB = async () => {
+      await storageService.initialize();
+      refreshData();
+      setIsInitializing(false);
+    };
+    initDB();
   }, [refreshData]);
 
   // Open Electronic Bin Card for a part
@@ -80,6 +86,10 @@ export default function App() {
   // Low & Out stock counts for badge
   const lowStockCount = parts.filter((p) => p.currentStock > 0 && p.currentStock <= p.minStock).length;
   const outOfStockCount = parts.filter((p) => p.currentStock === 0).length;
+
+  if (isInitializing) {
+    return <div className="flex h-screen items-center justify-center bg-slate-100 text-emerald-800 font-bold">Đang tải dữ liệu từ Supabase...</div>;
+  }
 
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-800 antialiased overflow-hidden">

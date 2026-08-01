@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Part, Transaction, AppSettings, ViewTab } from './types';
 import { storageService } from './storage';
+import { supabase } from './supabaseClient';
 
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
@@ -50,6 +51,21 @@ export default function App() {
       setIsInitializing(false);
     };
     initDB();
+
+    // Supabase Realtime Subscription
+    const channel = supabase
+      .channel('public-tables')
+      .on('postgres_changes', { event: '*', schema: 'public' }, async (payload) => {
+        console.log('Realtime change detected:', payload);
+        // Khi có thay đổi, tải lại toàn bộ data mới từ server và cập nhật UI
+        await storageService.refreshFromServer();
+        refreshData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [refreshData]);
 
   // Open Electronic Bin Card for a part

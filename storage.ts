@@ -13,6 +13,11 @@ let cachedStockChecks: StockCheckRecord[] = [];
 let isInitialized = false;
 
 export const storageService = {
+  async refreshFromServer() {
+    isInitialized = false;
+    await this.initialize();
+  },
+
   async initialize() {
     if (isInitialized) return;
     try {
